@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Finanzas">
+<title>Finanzas</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #0f1117; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #0f1117;
+    color: #e8e8e8;
+    max-width: 480px;
+    margin: 0 auto;
+    padding-bottom: 80px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button { font-family: 'DM Sans', sans-serif; }
+  input, select { font-family: 'DM Sans', sans-serif; }
+
+  /* Header */
+  #header {
+    background: linear-gradient(160deg, #1a1f2e 0%, #0f1117 100%);
+    padding: 20px 16px 0;
+    border-bottom: 1px solid #1e2433;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .app-title { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; color: #fff; }
+  .export-btn {
+    background: #1e2433; border: 1px solid #2a3147; border-radius: 10px;
+    padding: 8px 12px; color: #94a3b8; cursor: pointer; display: flex; align-items: center;
+  }
+  .month-nav {
+    display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 16px;
+  }
+  .nav-btn {
+    background: #1e2433; border: 1px solid #2a3147; border-radius: 8px;
+    padding: 6px 10px; color: #94a3b8; cursor: pointer; display: flex; align-items: center;
+  }
+  .month-label { font-size: 17px; font-weight: 600; color: #fff; min-width: 160px; text-align: center; }
+  .summary-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding-bottom: 16px; }
+  .summary-card {
+    background: #1a1f2e; border-radius: 12px; padding: 10px 8px;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .summary-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+  .summary-value { font-size: 14px; font-weight: 700; letter-spacing: -0.3px; }
+
+  /* Tabs */
+  .tabs {
+    display: flex; background: #0f1117; border-bottom: 1px solid #1e2433;
+    padding: 0 16px; gap: 4px;
+    position: sticky; top: 155px; z-index: 9;
+  }
+  .tab {
+    flex: 1; background: transparent; border: none;
+    border-bottom: 2px solid transparent; padding: 12px 4px;
+    color: #64748b; font-size: 14px; font-weight: 500; cursor: pointer;
+  }
+  .tab.active { color: #60a5fa; border-bottom: 2px solid #60a5fa; }
+
+  /* Content */
+  .content { padding: 16px; }
+  .empty { text-align: center; color: #475569; padding: 40px 16px; font-size: 14px; }
+
+  /* Account group */
+  .account-group { margin-bottom: 16px; background: #1a1f2e; border-radius: 14px; overflow: hidden; }
+  .account-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 14px; border-bottom: 1px solid #1e2433;
+  }
+  .account-header-left { display: flex; align-items: center; gap: 8px; }
+  .account-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .account-name { font-weight: 600; font-size: 14px; color: #e2e8f0; }
+  .account-total { font-size: 14px; font-weight: 700; }
+
+  /* Gasto row */
+  .gasto-row {
+    display: flex; align-items: center; gap: 10; padding: 10px 14px;
+    border-bottom: 1px solid #12151e; transition: opacity 0.2s;
+    gap: 10px;
+  }
+  .gasto-row.pagado { opacity: 0.6; }
+  .check-circle {
+    width: 22px; height: 22px; border-radius: 50%; border: 2px solid;
+    background: transparent; cursor: pointer; display: flex; align-items: center;
+    justify-content: center; flex-shrink: 0; padding: 0;
+  }
+  .gasto-info { flex: 1; min-width: 0; }
+  .gasto-concept {
+    font-size: 14px; color: #e2e8f0; display: flex; align-items: center;
+    gap: 6px; flex-wrap: wrap;
+  }
+  .badge-futuro { font-size: 10px; background: #d97706; color: #fff; border-radius: 4px; padding: 1px 5px; font-weight: 600; }
+  .badge-recurrente { font-size: 10px; background: #2563eb; color: #fff; border-radius: 4px; padding: 1px 5px; font-weight: 600; }
+  .sub-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .sub-tag { font-size: 11px; color: #64748b; background: #12151e; border-radius: 4px; padding: 2px 6px; }
+  .gasto-monto { font-size: 14px; font-weight: 600; color: #f87171; flex-shrink: 0; }
+  .ingreso-monto { font-size: 14px; font-weight: 600; color: #4ade80; flex-shrink: 0; }
+
+  /* Ingreso row */
+  .ingreso-row { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid #1e2433; }
+
+  /* Total row */
+  .total-row { display: flex; justify-content: space-between; padding: 14px 0; border-top: 1px solid #1e2433; margin-top: 8px; }
+  .total-label { font-size: 12px; font-weight: 700; color: #64748b; letter-spacing: 0.5px; }
+  .total-value { font-size: 16px; font-weight: 700; }
+
+  /* Buttons */
+  .fab-btn {
+    display: flex; align-items: center; gap: 8px; background: #1e3a5f;
+    border: 1px dashed #2563eb; border-radius: 12px; padding: 12px 16px;
+    color: #60a5fa; font-size: 14px; font-weight: 500; cursor: pointer;
+    width: 100%; margin-top: 8px; justify-content: center;
+  }
+  .edit-btn { background: transparent; border: none; color: #475569; cursor: pointer; padding: 4px; display: flex; align-items: center; flex-shrink: 0; }
+  .delete-btn { background: transparent; border: none; color: #475569; cursor: pointer; padding: 4px; display: flex; align-items: center; flex-shrink: 0; }
+  .primary-btn {
+    background: #2563eb; border: none; border-radius: 12px; padding: 14px;
+    color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 8px;
+  }
+  .ghost-btn {
+    background: transparent; border: 1px solid #2a3147; border-radius: 12px; padding: 12px;
+    color: #64748b; font-size: 14px; cursor: pointer; width: 100%;
+  }
+  .mini-btn {
+    background: #1e3a5f; border: 1px solid #2563eb; border-radius: 8px;
+    padding: 8px 10px; color: #60a5fa; cursor: pointer; display: flex; align-items: center; flex-shrink: 0;
+  }
+
+  /* Modal / overlay */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+    display: flex; align-items: flex-end; z-index: 100;
+  }
+  .modal {
+    background: #1a1f2e; border-radius: 20px 20px 0 0;
+    padding: 24px 20px; width: 100%; max-height: 90vh; overflow-y: auto;
+  }
+  .modal-title { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .modal-sub { color: #64748b; font-size: 14px; }
+  .form-col { display: flex; flex-direction: column; gap: 8px; }
+  .export-center { display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center; }
+
+  /* Form elements */
+  .label { font-size: 12px; color: #64748b; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin: 4px 0 2px; display: block; }
+  input[type=text], input[type=number], select {
+    background: #12151e; border: 1px solid #2a3147; border-radius: 10px;
+    padding: 11px 12px; color: #e8e8e8; font-size: 15px; outline: none; width: 100%;
+  }
+  input[type=text]::placeholder, input[type=number]::placeholder { color: #475569; }
+  .check-row { display: flex; gap: 20px; padding: 4px 0; }
+  .check-label { display: flex; align-items: center; font-size: 14px; color: #94a3b8; cursor: pointer; gap: 8px; }
+
+  /* Sub-items */
+  .sub-section { background: #12151e; border-radius: 10px; padding: 10px 12px; margin-top: 4px; }
+  .sub-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .sub-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #1e2433; }
+  .sub-concept { flex: 1; font-size: 13px; color: #94a3b8; }
+  .sub-monto { font-size: 13px; color: #e2e8f0; font-weight: 600; }
+  .sub-form-row { display: flex; gap: 6px; margin-top: 6px; align-items: center; }
+  .sub-form-row input { flex: 1; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div class="header-top">
+    <span class="app-title">Finanzas</span>
+    <button class="export-btn" onclick="openExport()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    </button>
+  </div>
+  <div class="month-nav">
+    <button class="nav-btn" onclick="prevMonth()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <span class="month-label" id="month-label"></span>
+    <button class="nav-btn" onclick="nextMonth()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+  </div>
+  <div class="summary-row">
+    <div class="summary-card" style="border-top: 3px solid #4ade80">
+      <span class="summary-label">Ingresos</span>
+      <span class="summary-value" id="sum-ingresos" style="color:#4ade80">$0</span>
+    </div>
+    <div class="summary-card" style="border-top: 3px solid #f87171">
+      <span class="summary-label">Gastos</span>
+      <span class="summary-value" id="sum-gastos" style="color:#f87171">$0</span>
+    </div>
+    <div class="summary-card" style="border-top: 3px solid #60a5fa" id="ahorro-card">
+      <span class="summary-label">Ahorro</span>
+      <span class="summary-value" id="sum-ahorro" style="color:#60a5fa">$0</span>
+    </div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" id="tab-gastos" onclick="switchTab('gastos')">Gastos</button>
+  <button class="tab" id="tab-sueldo" onclick="switchTab('sueldo')">Sueldo</button>
+  <button class="tab" id="tab-reditos" onclick="switchTab('reditos')">Réditos</button>
+</div>
+
+<div class="content" id="main-content"></div>
+
+<!-- Overlays -->
+<div class="overlay" id="overlay" style="display:none" onclick="closeModal()">
+  <div class="modal" onclick="event.stopPropagation()" id="modal-body"></div>
+</div>
+
+<script>
+const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+const ACCOUNTS = [
+  { id:"liverpool", name:"Liverpool", color:"#e63946" },
+  { id:"invex",     name:"Invex",     color:"#2563eb" },
+  { id:"nu",        name:"Nu",        color:"#7c3aed" },
+  { id:"amex",      name:"Amex",      color:"#059669" },
+  { id:"stori",     name:"Stori",     color:"#d97706" },
+  { id:"efectivo",  name:"Efectivo",  color:"#6b7280" },
+];
+const STORAGE_KEY = "finanzas_alberto_v1";
+
+let curYear = new Date().getFullYear();
+let curMonth = new Date().getMonth();
+let activeTab = "gastos";
+let allData = {};
+let editingIdx = null;
+let pendingSubItems = [];
+
+// ---- STORAGE ----
+function load() {
+  try { const r = localStorage.getItem(STORAGE_KEY); if (r) allData = JSON.parse(r); } catch {}
+}
+function save() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(allData)); } catch {}
+}
+function getKey() { return `${curYear}-${String(curMonth+1).padStart(2,"0")}`; }
+function getMonth() { return allData[getKey()] || { gastos:[], ingresos_sueldo:[], ingresos_reditos:[] }; }
+function setMonth(data) { allData[getKey()] = data; save(); }
+
+// ---- FORMAT ----
+function fmt(n) {
+  n = parseFloat(n) || 0;
+  return n.toLocaleString("es-MX", { style:"currency", currency:"MXN", maximumFractionDigits:0 });
+}
+function parseNum(s) { const n = parseFloat(String(s||"").replace(/[^0-9.]/g,"")); return isNaN(n)?0:n; }
+
+// ---- ICONS ----
+const ICO = {
+  plus:   `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+  trash:  `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`,
+  check:  `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>`,
+  edit:   `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+};
+
+// ---- NAVIGATION ----
+function prevMonth() {
+  if (curMonth===0) { curMonth=11; curYear--; } else curMonth--;
+  render();
+}
+function nextMonth() {
+  if (curMonth===11) { curMonth=0; curYear++; } else curMonth++;
+  render();
+}
+function switchTab(t) {
+  activeTab = t;
+  document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
+  document.getElementById("tab-"+t).classList.add("active");
+  renderContent();
+}
+
+// ---- MAIN RENDER ----
+function render() {
+  document.getElementById("month-label").textContent = `${MONTHS[curMonth]} ${curYear}`;
+  updateSummary();
+  renderContent();
+}
+
+function updateSummary() {
+  const md = getMonth();
+  const gastos = md.gastos.reduce((s,g)=>s+parseNum(g.monto),0);
+  const sueldo = md.ingresos_sueldo.reduce((s,i)=>s+parseNum(i.monto),0);
+  const reditos = md.ingresos_reditos.reduce((s,i)=>s+parseNum(i.monto),0);
+  const ingresos = sueldo + reditos;
+  const ahorro = ingresos - gastos;
+  document.getElementById("sum-ingresos").textContent = fmt(ingresos);
+  document.getElementById("sum-gastos").textContent = fmt(gastos);
+  document.getElementById("sum-ahorro").textContent = fmt(ahorro);
+  const ac = document.getElementById("ahorro-card");
+  const av = document.getElementById("sum-ahorro");
+  const color = ahorro >= 0 ? "#60a5fa" : "#fb923c";
+  ac.style.borderTopColor = color;
+  av.style.color = color;
+}
+
+function renderContent() {
+  const md = getMonth();
+  const el = document.getElementById("main-content");
+  if (activeTab === "gastos") el.innerHTML = renderGastos(md.gastos);
+  else if (activeTab === "sueldo") el.innerHTML = renderIngresos(md.ingresos_sueldo, "Sueldo", "sueldo");
+  else el.innerHTML = renderIngresos(md.ingresos_reditos, "Réditos", "reditos");
+}
+
+// ---- GASTOS ----
+function renderGastos(gastos) {
+  const byAccount = {};
+  gastos.forEach((g,i) => { if(!byAccount[g.cuenta]) byAccount[g.cuenta]=[]; byAccount[g.cuenta].push({...g,_i:i}); });
+  const total = gastos.reduce((s,g)=>s+parseNum(g.monto),0);
+
+  let html = gastos.length===0 ? `<div class="empty">Sin gastos registrados este mes</div>` : "";
+
+  ACCOUNTS.forEach(acc => {
+    const items = byAccount[acc.name];
+    if (!items || !items.length) return;
+    const acctTotal = items.reduce((s,g)=>s+parseNum(g.monto),0);
+    html += `<div class="account-group">
+      <div class="account-header">
+        <div class="account-header-left">
+          <div class="account-dot" style="background:${acc.color}"></div>
+          <span class="account-name">${acc.name}</span>
+        </div>
+        <span class="account-total" style="color:${acc.color}">${fmt(acctTotal)}</span>
+      </div>`;
+    items.forEach(item => {
+      const subHtml = (item.subItems||[]).map(s=>`<span class="sub-tag">${s.concepto} ${fmt(s.monto)}</span>`).join("");
+      html += `<div class="gasto-row ${item.pagado?"pagado":""}">
+        <button class="check-circle" style="border-color:${acc.color};background:${item.pagado?acc.color:"transparent"}"
+          onclick="togglePagado(${item._i})">
+          ${item.pagado?`<span style="color:#fff">${ICO.check}</span>`:""}
+        </button>
+        <div class="gasto-info">
+          <div class="gasto-concept">
+            ${item.concepto}
+            ${item.esFuturo?`<span class="badge-futuro">futuro</span>`:""}
+          </div>
+          ${subHtml?`<div class="sub-list">${subHtml}</div>`:""}
+        </div>
+        <span class="gasto-monto">${fmt(item.monto)}</span>
+        <button class="edit-btn" onclick="openEditGasto(${item._i})">${ICO.edit}</button>
+        <button class="delete-btn" onclick="deleteGasto(${item._i})">${ICO.trash}</button>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+
+  html += `<div class="total-row">
+    <span class="total-label">TOTAL GASTOS</span>
+    <span class="total-value" style="color:#f87171">${fmt(total)}</span>
+  </div>
+  <button class="fab-btn" onclick="openAddGasto()">${ICO.plus} Agregar gasto</button>`;
+  return html;
+}
+
+function togglePagado(idx) {
+  const md = getMonth();
+  md.gastos[idx].pagado = !md.gastos[idx].pagado;
+  setMonth(md); render();
+}
+function deleteGasto(idx) {
+  const md = getMonth();
+  md.gastos.splice(idx,1);
+  setMonth(md); render();
+}
+
+function openAddGasto() {
+  editingIdx = null;
+  pendingSubItems = [];
+  showGastoForm({ cuenta:"Liverpool", concepto:"", monto:"", pagado:false, esFuturo:false, subItems:[] });
+}
+function openEditGasto(idx) {
+  editingIdx = idx;
+  const item = getMonth().gastos[idx];
+  pendingSubItems = [...(item.subItems||[])];
+  showGastoForm({...item});
+}
+
+function showGastoForm(item) {
+  const accsOpts = ACCOUNTS.map(a=>`<option ${a.name===item.cuenta?"selected":""}>${a.name}</option>`).join("");
+  const subRows = pendingSubItems.map((s,i)=>`
+    <div class="sub-item">
+      <span class="sub-concept">${s.concepto}</span>
+      <span class="sub-monto">${fmt(s.monto)}</span>
+      <button class="delete-btn" onclick="removeSubItem(${i})">${ICO.trash}</button>
+    </div>`).join("");
+
+  document.getElementById("modal-body").innerHTML = `
+    <div class="form-col">
+      <h3 class="modal-title">${editingIdx!==null?"Editar":"Nuevo"} gasto</h3>
+      <label class="label">Cuenta</label>
+      <select id="f-cuenta">${accsOpts}</select>
+      <label class="label">Concepto</label>
+      <input type="text" id="f-concepto" value="${item.concepto}" placeholder="Ej. Gasolina, Gym...">
+      <label class="label">Monto ($)</label>
+      <input type="number" id="f-monto" value="${item.monto||""}" placeholder="0">
+      <div class="check-row">
+        <label class="check-label"><input type="checkbox" id="f-pagado" ${item.pagado?"checked":""}> Pagado</label>
+        <label class="check-label"><input type="checkbox" id="f-futuro" ${item.esFuturo?"checked":""}> Gasto futuro</label>
+      </div>
+      <div class="sub-section">
+        <div class="sub-header">
+          <span class="label" style="margin:0">Desglose</span>
+          <button class="mini-btn" onclick="toggleSubForm()">${ICO.plus}</button>
+        </div>
+        <div id="sub-items-list">${subRows}</div>
+        <div id="sub-form" style="display:none" class="sub-form-row">
+          <input type="text" id="sf-concepto" placeholder="Concepto" style="flex:2">
+          <input type="number" id="sf-monto" placeholder="$" style="flex:1">
+          <button class="mini-btn" onclick="addSubItem()">${ICO.check}</button>
+        </div>
+      </div>
+      <button class="primary-btn" onclick="saveGasto()">Guardar</button>
+      <button class="ghost-btn" onclick="closeModal()">Cancelar</button>
+    </div>`;
+  document.getElementById("overlay").style.display = "flex";
+}
+
+function toggleSubForm() {
+  const sf = document.getElementById("sub-form");
+  sf.style.display = sf.style.display==="none" ? "flex" : "none";
+}
+function addSubItem() {
+  const c = document.getElementById("sf-concepto").value.trim();
+  const m = document.getElementById("sf-monto").value;
+  if (!c || !m) return;
+  pendingSubItems.push({ concepto:c, monto:parseNum(m) });
+  // Re-render sub list
+  const rows = pendingSubItems.map((s,i)=>`
+    <div class="sub-item">
+      <span class="sub-concept">${s.concepto}</span>
+      <span class="sub-monto">${fmt(s.monto)}</span>
+      <button class="delete-btn" onclick="removeSubItem(${i})">${ICO.trash}</button>
+    </div>`).join("");
+  document.getElementById("sub-items-list").innerHTML = rows;
+  document.getElementById("sf-concepto").value = "";
+  document.getElementById("sf-monto").value = "";
+}
+function removeSubItem(i) {
+  pendingSubItems.splice(i,1);
+  const rows = pendingSubItems.map((s,j)=>`
+    <div class="sub-item">
+      <span class="sub-concept">${s.concepto}</span>
+      <span class="sub-monto">${fmt(s.monto)}</span>
+      <button class="delete-btn" onclick="removeSubItem(${j})">${ICO.trash}</button>
+    </div>`).join("");
+  document.getElementById("sub-items-list").innerHTML = rows;
+}
+function saveGasto() {
+  const concepto = document.getElementById("f-concepto").value.trim();
+  const monto = document.getElementById("f-monto").value;
+  if (!concepto || !monto) return;
+  const item = {
+    cuenta: document.getElementById("f-cuenta").value,
+    concepto,
+    monto: parseNum(monto),
+    pagado: document.getElementById("f-pagado").checked,
+    esFuturo: document.getElementById("f-futuro").checked,
+    subItems: [...pendingSubItems],
+  };
+  const md = getMonth();
+  if (editingIdx !== null) md.gastos[editingIdx] = item;
+  else md.gastos.push(item);
+  setMonth(md); closeModal(); render();
+}
+
+// ---- INGRESOS ----
+function renderIngresos(items, label, type) {
+  const total = items.reduce((s,i)=>s+parseNum(i.monto),0);
+  let html = items.length===0 ? `<div class="empty">Sin ingresos de ${label.toLowerCase()} registrados</div>` : "";
+  items.forEach((item,idx) => {
+    html += `<div class="ingreso-row">
+      <div class="gasto-info">
+        <div class="gasto-concept">
+          ${item.concepto}
+          ${item.recurrente?`<span class="badge-recurrente">recurrente</span>`:""}
+          ${item.esFuturo?`<span class="badge-futuro">futuro</span>`:""}
+        </div>
+      </div>
+      <span class="ingreso-monto">${fmt(item.monto)}</span>
+      <button class="edit-btn" onclick="openEditIngreso(${idx},'${type}')">${ICO.edit}</button>
+      <button class="delete-btn" onclick="deleteIngreso(${idx},'${type}')">${ICO.trash}</button>
+    </div>`;
+  });
+  html += `<div class="total-row">
+    <span class="total-label">TOTAL ${label.toUpperCase()}</span>
+    <span class="total-value" style="color:#4ade80">${fmt(total)}</span>
+  </div>
+  <button class="fab-btn" onclick="openAddIngreso('${type}','${label}')">${ICO.plus} Agregar ingreso</button>`;
+  return html;
+}
+
+function deleteIngreso(idx, type) {
+  const md = getMonth();
+  const key = type==="sueldo" ? "ingresos_sueldo" : "ingresos_reditos";
+  md[key].splice(idx,1);
+  setMonth(md); render();
+}
+function openAddIngreso(type, label) {
+  editingIdx = null;
+  showIngresoForm({ concepto:"", monto:"", recurrente:false, esFuturo:false }, type, label);
+}
+function openEditIngreso(idx, type) {
+  editingIdx = idx;
+  const key = type==="sueldo" ? "ingresos_sueldo" : "ingresos_reditos";
+  const item = getMonth()[key][idx];
+  const label = type==="sueldo" ? "Sueldo" : "Réditos";
+  showIngresoForm({...item}, type, label);
+}
+function showIngresoForm(item, type, label) {
+  document.getElementById("modal-body").innerHTML = `
+    <div class="form-col">
+      <h3 class="modal-title">${editingIdx!==null?"Editar":"Nuevo"} ingreso de ${label}</h3>
+      <label class="label">Concepto</label>
+      <input type="text" id="fi-concepto" value="${item.concepto}" placeholder="Ej. Quincena 1, Bono...">
+      <label class="label">Monto ($)</label>
+      <input type="number" id="fi-monto" value="${item.monto||""}" placeholder="0">
+      <div class="check-row">
+        <label class="check-label"><input type="checkbox" id="fi-recurrente" ${item.recurrente?"checked":""}> Recurrente</label>
+        <label class="check-label"><input type="checkbox" id="fi-futuro" ${item.esFuturo?"checked":""}> Ingreso futuro</label>
+      </div>
+      <button class="primary-btn" onclick="saveIngreso('${type}')">Guardar</button>
+      <button class="ghost-btn" onclick="closeModal()">Cancelar</button>
+    </div>`;
+  document.getElementById("overlay").style.display = "flex";
+}
+function saveIngreso(type) {
+  const concepto = document.getElementById("fi-concepto").value.trim();
+  const monto = document.getElementById("fi-monto").value;
+  if (!concepto || !monto) return;
+  const item = {
+    concepto,
+    monto: parseNum(monto),
+    recurrente: document.getElementById("fi-recurrente").checked,
+    esFuturo: document.getElementById("fi-futuro").checked,
+  };
+  const md = getMonth();
+  const key = type==="sueldo" ? "ingresos_sueldo" : "ingresos_reditos";
+  if (editingIdx !== null) md[key][editingIdx] = item;
+  else md[key].push(item);
+  setMonth(md); closeModal(); render();
+}
+
+// ---- EXPORT ----
+function openExport() {
+  document.getElementById("modal-body").innerHTML = `
+    <div class="export-center">
+      <h3 class="modal-title">Exportar ${MONTHS[curMonth]} ${curYear}</h3>
+      <p class="modal-sub">Se descargará un archivo CSV con todos tus registros del mes.</p>
+      <button class="primary-btn" onclick="exportCSV()">Descargar CSV</button>
+      <button class="ghost-btn" onclick="closeModal()">Cancelar</button>
+    </div>`;
+  document.getElementById("overlay").style.display = "flex";
+}
+function exportCSV() {
+  const md = getMonth();
+  const gastos = md.gastos.reduce((s,g)=>s+parseNum(g.monto),0);
+  const sueldo = md.ingresos_sueldo.reduce((s,i)=>s+parseNum(i.monto),0);
+  const reditos = md.ingresos_reditos.reduce((s,i)=>s+parseNum(i.monto),0);
+  const ingresos = sueldo + reditos;
+  const rows = [
+    [`Finanzas ${MONTHS[curMonth]} ${curYear}`],[],
+    ["GASTOS"],["Cuenta","Concepto","Monto","Pagado"],
+    ...md.gastos.map(g=>[g.cuenta,g.concepto,g.monto,g.pagado?"✓":""]),
+    ["","TOTAL GASTOS",gastos,""],
+    [],["INGRESOS SUELDO"],["Concepto","Monto"],
+    ...md.ingresos_sueldo.map(i=>[i.concepto,i.monto]),
+    ["TOTAL SUELDO",sueldo],
+    [],["INGRESOS RÉDITOS"],["Concepto","Monto"],
+    ...md.ingresos_reditos.map(i=>[i.concepto,i.monto]),
+    ["TOTAL RÉDITOS",reditos],
+    [],["TOTAL INGRESOS",ingresos],["AHORRO",ingresos-gastos],
+  ];
+  const csv = rows.map(r=>r.join(",")).join("\n");
+  const blob = new Blob([csv],{type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `finanzas_${MONTHS[curMonth]}_${curYear}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+  closeModal();
+}
+
+function closeModal() {
+  document.getElementById("overlay").style.display = "none";
+}
+
+// ---- INIT ----
+load();
+render();
+</script>
+</body>
+</html>
