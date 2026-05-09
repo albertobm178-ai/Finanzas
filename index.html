@@ -489,8 +489,11 @@ function effG(){
   const res=[...md.gastos];
   (g.fg||[]).forEach(f=>{
     const s=f.fi||"2020-01",e=f.ff||"2099-12";
-    if(k>=s&&k<=e&&!res.find(x=>x.fijoId===f.id))
-      res.push({id:uid(),fijoId:f.id,concepto:f.concepto,monto:f.monto,cuenta:f.cuenta||"Efectivo",tipo:"fijo",categoria:f.categoria||"Otro",pagado:false,subItems:[],esFuturo:false,fecha:"",_inj:true});
+    if(k>=s&&k<=e&&!res.find(x=>x.fijoId===f.id)){
+      const isCurrentMonth=k===`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,"0")}`;
+      const autoPagado=isCurrentMonth&&shouldAutoMark(f.dueDay);
+      res.push({id:uid(),fijoId:f.id,concepto:f.concepto,monto:f.monto,cuenta:f.cuenta||"Efectivo",tipo:"fijo",categoria:f.categoria||"Otro",pagado:autoPagado,subItems:[],esFuturo:false,fecha:"",_inj:true});
+    }
   });
   return res;
 }
@@ -499,8 +502,11 @@ function effI(){
   const res=[...md.ingresos];
   (g.fi||[]).forEach(f=>{
     const s=f.fi||"2020-01",e=f.ff||"2099-12";
-    if(k>=s&&k<=e&&!res.find(x=>x.fijoId===f.id))
-      res.push({id:uid(),fijoId:f.id,concepto:f.concepto,monto:f.monto,tipo:"fijo",categoria:f.categoria||"Sueldo",recibido:false,esFuturo:false,fecha:"",_inj:true});
+    if(k>=s&&k<=e&&!res.find(x=>x.fijoId===f.id)){
+      const isCurrentMonth=k===`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,"0")}`;
+      const autoRecibido=isCurrentMonth&&shouldAutoMark(f.dueDay);
+      res.push({id:uid(),fijoId:f.id,concepto:f.concepto,monto:f.monto,tipo:"fijo",categoria:f.categoria||"Sueldo",recibido:autoRecibido,esFuturo:false,fecha:"",_inj:true});
+    }
   });
   return res;
 }
@@ -632,7 +638,7 @@ function renderMes(){
 
   // ── INGRESOS ──
   if(mesFil==="all"||mesFil==="ingresos"){
-    h+=`<div class="seclbl">Ingresos — ${MONTHS[M]} ${Y}</div>`;
+    h+=`<div class="seclbl">Ingresos</div>`;
     const ingFijos=ing.filter(x=>x.tipo==="fijo");
     const ingVars=ing.filter(x=>x.tipo!=="fijo");
     const tIF=ingFijos.reduce((s,x)=>s+pn(x.monto),0);
@@ -694,7 +700,7 @@ function renderMes(){
     Object.keys(byAcc).forEach(k=>{byAcc[k].sort((a,b)=>{if(a.tipo==="fijo"&&b.tipo!=="fijo")return -1;if(a.tipo!=="fijo"&&b.tipo==="fijo")return 1;return 0;});});
     const tPag=gas.filter(x=>x.pagado).reduce((s,x)=>s+pn(x.monto),0);
     const tGtotal=gas.reduce((s,x)=>s+pn(x.monto),0);
-    h+=`<div class="seclbl" style="margin-top:${mesFil==="all"?16:0}px">Gastos — ${MONTHS[M]} ${Y}</div>`;
+    h+=`<div class="seclbl" style="margin-top:${mesFil==="all"?16:0}px">Gastos</div>`;
     if(!gas.length)h+=`<div class="empty">Sin gastos este mes</div>`;
     ACCS.forEach(acc=>{
       const items=byAcc[acc.name];if(!items||!items.length)return;
@@ -755,7 +761,7 @@ function renderMes(){
   // ── AHORRO ──
   if(mesFil==="all"||mesFil==="ahorro"){
     const gasAho=gas.filter(x=>isAhoCat(x));
-    h+=`<div class="seclbl" style="margin-top:${mesFil==="all"?16:0}px">Ahorro — ${MONTHS[M]} ${Y}</div>`;
+    h+=`<div class="seclbl" style="margin-top:${mesFil==="all"?16:0}px">Ahorro</div>`;
     h+=`<div class="balcard">
       <div class="balrow"><span class="ballbl">Ingresos totales</span><span class="balval" style="color:var(--green)">${fmt(tI)}</span></div>
       <div class="balrow"><span class="ballbl">Gastos operativos</span><span class="balval" style="color:var(--red)">- ${fmt(tGop)}</span></div>
@@ -872,6 +878,8 @@ function showIForm(item){
       <div><label class="lbl">Tipo</label><select id="it"><option value="variable" ${item.tipo!=="fijo"?"selected":""}>Variable</option><option value="fijo" ${item.tipo==="fijo"?"selected":""}>Fijo</option></select></div>
       <div><label class="lbl">Categoría</label><select id="icat"><option value="">— Sin categoría —</option>${co}</select></div>
     </div>
+    <label class="lbl">Cuenta destino</label>
+    <select id="icuenta"><option value="">— Sin cuenta —</option>${ao}</select>
     <div class="chkrow">
       <label class="clbl"><input type="checkbox" id="ir" ${item.recibido?"checked":""}> Recibido</label>
       <label class="clbl"><input type="checkbox" id="ifu" ${item.esFuturo?"checked":""}> Futuro</label>
@@ -899,7 +907,7 @@ function renderFijos(){
     const catColor=getCatColor(item.categoria);
     h+=`<div class="card"><div class="irow">
       <div class="ileft"><div class="iname">${esc(item.concepto)}<span class="bdg bdg-fijo">fijo</span>${item.categoria?`<span class="cat-pill" style="background:${catColor}22;color:${catColor}">${item.categoria}</span>`:""}</div>
-      <div class="imeta">${item.cuenta||"Efectivo"} · desde ${item.fi||"siempre"}${item.ff?` hasta ${item.ff}`:""}</div></div>
+      <div class="imeta">${item.cuenta||"Efectivo"} · ${item.dueDay?`día ${item.dueDay} · `:""}desde ${item.fi||"siempre"}${item.ff?` hasta ${item.ff}`:""}</div></div>
       <span class="iamt" style="color:var(--red)">${fmt(item.monto)}/mes</span>
       <div class="iacts"><button class="abtn" onclick="editFG(${idx})">${ICO.edit}</button><button class="abtn" onclick="delFG(${idx})">${ICO.del}</button></div>
     </div></div>`;
@@ -911,7 +919,7 @@ function renderFijos(){
     const catColor=getCatColor(item.categoria);
     h+=`<div class="card"><div class="irow">
       <div class="ileft"><div class="iname">${esc(item.concepto)}<span class="bdg bdg-fijo">fijo</span>${item.categoria?`<span class="cat-pill" style="background:${catColor}22;color:${catColor}">${item.categoria}</span>`:""}</div>
-      <div class="imeta">desde ${item.fi||"siempre"}${item.ff?` hasta ${item.ff}`:""}</div></div>
+      <div class="imeta">${item.dueDay?`día ${item.dueDay} · `:""}desde ${item.fi||"siempre"}${item.ff?` hasta ${item.ff}`:""}</div></div>
       <span class="iamt" style="color:var(--green)">${fmt(item.monto)}/mes</span>
       <div class="iacts"><button class="abtn" onclick="editFI(${idx})">${ICO.edit}</button><button class="abtn" onclick="delFI(${idx})">${ICO.del}</button></div>
     </div></div>`;
@@ -934,6 +942,11 @@ function showFGForm(item){
     </div>
     <label class="lbl">Categoría</label><select id="fgcat"><option value="">— Sin categoría —</option>${co}</select>
     <div class="r2">
+      <div><label class="lbl">Día de cobro (1–31)</label><input type="number" id="fgd" value="${item.dueDay||""}" placeholder="Ej. 1, 15, 28..." min="1" max="31"></div>
+      <div></div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:-4px;padding:0 2px">Si hoy es igual o mayor a este día, se marcará automáticamente como pagado.</div>
+    <div class="r2">
       <div><label class="lbl">Fecha inicio</label><input type="month" id="fgi" value="${item.fi||""}"></div>
       <div><label class="lbl">Fecha fin (opcional)</label><input type="month" id="fgf" value="${item.ff||""}"></div>
     </div>
@@ -944,7 +957,7 @@ function showFGForm(item){
 }
 function saveFG(){
   const con=document.getElementById("fgc").value.trim(),mon=document.getElementById("fgm").value;if(!con||!mon)return;
-  const item={id:uid(),concepto:con,monto:pn(mon),cuenta:document.getElementById("fgcta").value,categoria:document.getElementById("fgcat").value,fi:document.getElementById("fgi").value||"",ff:document.getElementById("fgf").value||""};
+  const item={id:uid(),concepto:con,monto:pn(mon),cuenta:document.getElementById("fgcta").value,categoria:document.getElementById("fgcat").value,dueDay:parseInt(document.getElementById("fgd").value)||"",fi:document.getElementById("fgi").value||"",ff:document.getElementById("fgf").value||""};
   const g=getG();if(editId!==null){item.id=g.fg[editId].id;g.fg[editId]=item;}else g.fg.push(item);
   setG(g);closeModal();renderContent();
 }
@@ -962,6 +975,11 @@ function showFIForm(item){
       <div><label class="lbl">Categoría</label><select id="ficat"><option value="">— Sin categoría —</option>${co}</select></div>
     </div>
     <div class="r2">
+      <div><label class="lbl">Día de cobro (1–31)</label><input type="number" id="fid" value="${item.dueDay||""}" placeholder="Ej. 1, 15, 28..." min="1" max="31"></div>
+      <div></div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);margin-top:-4px;padding:0 2px">Si hoy es igual o mayor a este día, se marcará automáticamente como recibido.</div>
+    <div class="r2">
       <div><label class="lbl">Fecha inicio</label><input type="month" id="fii" value="${item.fi||""}"></div>
       <div><label class="lbl">Fecha fin (opcional)</label><input type="month" id="fif" value="${item.ff||""}"></div>
     </div>
@@ -972,7 +990,7 @@ function showFIForm(item){
 }
 function saveFI(){
   const con=document.getElementById("fic").value.trim(),mon=document.getElementById("fim").value;if(!con||!mon)return;
-  const item={id:uid(),concepto:con,monto:pn(mon),categoria:document.getElementById("ficat").value,fi:document.getElementById("fii").value||"",ff:document.getElementById("fif").value||""};
+  const item={id:uid(),concepto:con,monto:pn(mon),dueDay:parseInt(document.getElementById("fid").value)||"",categoria:document.getElementById("ficat").value,fi:document.getElementById("fii").value||"",ff:document.getElementById("fif").value||""};
   const g=getG();if(editId!==null){item.id=g.fi[editId].id;g.fi[editId]=item;}else g.fi.push(item);
   setG(g);closeModal();renderContent();
 }
@@ -1023,14 +1041,12 @@ function renderMSI(){
 function openAddMSI(){editId=null;showMSIForm({concepto:"",total:"",meses:"",cuenta:"Invex",fi:""});}
 function editMSI(idx){editId=idx;showMSIForm({...getG().msi[idx]});}
 function showMSIForm(item){
-  const debitAccs=getDebitAccounts();
-  const def=getDefaultDebit();
-  const defName=item.cuenta||def?.name||"";
-  const ao=debitAccs.length?debitAccs.map(a=>`<option value="${esc(a.name)}" ${a.name===defName?"selected":""}>${esc(a.name)}${a.lastFour?" ···"+a.lastFour:""}${a.isDefault?" ★":""}</option>`).join(""):`<option value="">Sin cuentas de débito</option>`;
+  const creditAccs=getCreditAccounts();
+  const ao=creditAccs.length?creditAccs.map(a=>`<option value="${esc(a.name)}" ${a.name===item.cuenta?"selected":""}>${esc(a.name)}${a.lastFour?" ···"+a.lastFour:""}</option>`).join(""):`<option value="">Sin cuentas de crédito disponibles</option>`;
   document.getElementById("mbody").innerHTML=`<div class="mhandle"></div><div class="fcol">
     <h3 class="mtitle">${editId!==null?"Editar":"Nuevo"} MSI</h3>
     <label class="lbl">Concepto</label><input type="text" id="mc" value="${esc(item.concepto)}" placeholder="Ej. iPhone, TV...">
-    <label class="lbl">Tarjeta</label><select id="mta">${ao}</select>
+    <label class="lbl">Tarjeta de crédito</label><select id="mta"><option value="">— Sin cuenta —</option>${ao}</select>
     <div class="r2">
       <div><label class="lbl">Total ($)</label><input type="number" id="mt" value="${item.total||""}" placeholder="0" oninput="prevMSI()"></div>
       <div><label class="lbl">Meses</label><input type="number" id="mm" value="${item.meses||""}" placeholder="12" oninput="prevMSI()"></div>
@@ -1197,24 +1213,29 @@ function selAccColor(c){
   ACC_COLORS.forEach(col=>{const el=document.getElementById("acb"+col.replace("#",""));if(el)el.style.border=col===c?"3px solid var(--text)":"2px solid transparent";});
 }
 function saveAccount(type){
-  const name=document.getElementById("an").value.trim();if(!name)return;
+  const name=(document.getElementById("an")||{}).value||"";
+  if(!name.trim()){alert("El nombre es obligatorio");return;}
   const isCredit=type==="credit";
   if(isCredit){
-    if(!document.getElementById("acut").value||!document.getElementById("apay").value){alert("La fecha de corte y pago son obligatorias para tarjetas de crédito.");return;}
+    const cutEl=document.getElementById("acut");
+    const payEl=document.getElementById("apay");
+    if(!cutEl||!cutEl.value||!payEl||!payEl.value){alert("La fecha de corte y pago son obligatorias.");return;}
   }
   const g=getG();
-  const item={id:editId!==null?g.accounts[editId].id:uid(),type,name,color:window._accColor||ACC_COLORS[0],lastFour:document.getElementById("a4").value.slice(-4)||""};
+  if(!g.accounts)g.accounts=[];
+  const item={id:editId!==null?(g.accounts[editId]||{}).id||uid():uid(),type,name:name.trim(),color:window._accColor||ACC_COLORS[0],lastFour:(document.getElementById("a4")||{}).value||""};
   if(!isCredit){
-    item.balance=pn(document.getElementById("abal").value);
-    item.isDefault=document.getElementById("adef").checked;
+    item.balance=pn((document.getElementById("abal")||{}).value||0);
+    item.isDefault=document.getElementById("adef")?document.getElementById("adef").checked:false;
     if(item.isDefault)g.accounts.forEach(a=>{if(a.type==="debit")a.isDefault=false;});
   }else{
-    item.cutDay=document.getElementById("acut").value;
-    item.payDay=document.getElementById("apay").value;
-    item.annualFee=document.getElementById("aanf").value||"";
-    item.annualFeeDate=document.getElementById("aanfd").value||"";
+    item.cutDay=(document.getElementById("acut")||{}).value||"";
+    item.payDay=(document.getElementById("apay")||{}).value||"";
+    item.annualFee=(document.getElementById("aanf")||{}).value||"";
+    item.annualFeeDate=(document.getElementById("aanfd")||{}).value||"";
   }
-  if(editId!==null){item.id=g.accounts[editId].id;g.accounts[editId]=item;}else g.accounts.push(item);
+  if(editId!==null&&editId<g.accounts.length){item.id=g.accounts[editId].id;g.accounts[editId]=item;}
+  else g.accounts.push(item);
   setG(g);closeModal();renderContent();
 }
 function deleteAccount(idx){if(!confirm("¿Eliminar esta cuenta?"))return;const g=getG();g.accounts.splice(idx,1);setG(g);closeModal();renderContent();}
