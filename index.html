@@ -9,7 +9,7 @@
 <title>Quantia</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
 <style>
 :root {
   --bg:#FAF7F2;--surface:#FFFFFF;--surface2:#F0EDE8;--border:#E5E0D8;--border2:#D8D2C8;
@@ -227,6 +227,7 @@ input::placeholder{color:var(--text3);}
   <div style="text-align:center">
     <div style="font-family:Syne,sans-serif;font-size:36px;font-weight:800;color:var(--primary);letter-spacing:-1px;margin-bottom:16px">Quantia</div>
     <div class="spinner"></div>
+    <div id="loading-msg" style="font-size:12px;color:var(--text3);margin-top:16px;opacity:0;transition:opacity 1s">Cargando...</div>
   </div>
 </div>
 
@@ -1271,8 +1272,21 @@ document.getElementById("bnav").style.display = "none";
 const savedTheme = localStorage.getItem("quantia_theme") || "dark";
 document.body.setAttribute("data-theme", savedTheme);
 
+// Show loading message after 2s if still loading
+setTimeout(() => {
+  const msg = document.getElementById("loading-msg");
+  if(msg) msg.style.opacity = "1";
+}, 2000);
+
+// Safety timeout: if Supabase takes too long, show login anyway
+const authTimeout = setTimeout(() => {
+  console.warn("Auth timeout - showing login");
+  showLogin();
+}, 8000);
+
 // Listen for auth state changes
 sb.auth.onAuthStateChange(async (event, session) => {
+  clearTimeout(authTimeout);
   if(session && session.user) {
     currentUser = session.user;
     allData = {};
@@ -1284,6 +1298,24 @@ sb.auth.onAuthStateChange(async (event, session) => {
     showLogin();
   }
 });
+
+// Also check session immediately (faster than waiting for event on mobile)
+(async () => {
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    if(session && session.user) {
+      clearTimeout(authTimeout);
+      currentUser = session.user;
+      allData = {};
+      await loadUserData();
+      showApp();
+      render();
+      switchPage("mes");
+    }
+  } catch(e) {
+    console.error("getSession error", e);
+  }
+})();
 </script>
 </body>
 </html>
