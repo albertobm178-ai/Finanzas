@@ -374,6 +374,8 @@ function getG(){
 // Save month data to Supabase
 async function setMD(d){
   allData[key()]=d;
+  // Update cache immediately
+  if(currentUser) try { localStorage.setItem("quantia_cache_"+currentUser.id, JSON.stringify(allData)); } catch(e){}
   if(!currentUser) return;
   const k=key();
   try{
@@ -390,6 +392,8 @@ async function setMD(d){
 // Save global data to Supabase
 async function setG(d){
   allData._g=d;
+  // Update cache immediately
+  if(currentUser) try { localStorage.setItem("quantia_cache_"+currentUser.id, JSON.stringify(allData)); } catch(e){}
   if(!currentUser) return;
   try{
     await sb.from("global_data").upsert({
@@ -417,34 +421,59 @@ async function saveTDCPayment(paymentKey, paid){
   } catch(e){ console.error("saveTDCPayment error",e); }
 }
 
-// Load all user data from Supabase
+// Load all user data from Supabase with timeout
 async function loadUserData(){
   if(!currentUser) return;
-  try{
-    // Load all month data
-    const { data: months } = await sb.from("month_data")
-      .select("*").eq("user_id", currentUser.id);
-    if(months) months.forEach(m => {
-      allData[m.month_key] = { gastos: m.gastos||[], ingresos: m.ingresos||[] };
-    });
-
-    // Load global data
-    const { data: gRows } = await sb.from("global_data")
-      .select("*").eq("user_id", currentUser.id).single();
-    if(gRows) {
-      allData._g = {
-        fg: gRows.fg||[], fi: gRows.fi||[], msi: gRows.msi||[], tdc: gRows.tdc||[],
-        cats_g: gRows.cats_g||[...DEFAULT_CATS_G],
-        cats_i: gRows.cats_i||[...DEFAULT_CATS_I]
-      };
+  // Try to load from localStorage cache first for instant load
+  try {
+    const cached = localStorage.getItem("quantia_cache_"+currentUser.id);
+    if(cached) {
+      allData = JSON.parse(cached);
+      // Render immediately with cached data
+      showApp();
+      render();
+      switchPage("mes");
     }
+  } catch(e){}
 
-    // Load TDC payments
-    const { data: payments } = await sb.from("tdc_payments")
-      .select("*").eq("user_id", currentUser.id);
-    if(payments) payments.forEach(p => { allData[p.payment_key] = p.paid; });
+  // Then sync from Supabase in background
+  try{
+    const timeout = new Promise((_,rej) => setTimeout(()=>rej(new Error("timeout")), 6000));
+    
+    const fetchData = async () => {
+      const [monthsRes, gRes, paymentsRes] = await Promise.all([
+        sb.from("month_data").select("*").eq("user_id", currentUser.id),
+        sb.from("global_data").select("*").eq("user_id", currentUser.id).single(),
+        sb.from("tdc_payments").select("*").eq("user_id", currentUser.id)
+      ]);
 
-  } catch(e){ console.error("loadUserData error",e); }
+      if(monthsRes.data) monthsRes.data.forEach(m => {
+        allData[m.month_key] = { gastos: m.gastos||[], ingresos: m.ingresos||[] };
+      });
+
+      if(gRes.data) {
+        allData._g = {
+          fg: gRes.data.fg||[], fi: gRes.data.fi||[], 
+          msi: gRes.data.msi||[], tdc: gRes.data.tdc||[],
+          cats_g: gRes.data.cats_g||[...DEFAULT_CATS_G],
+          cats_i: gRes.data.cats_i||[...DEFAULT_CATS_I]
+        };
+      }
+
+      if(paymentsRes.data) paymentsRes.data.forEach(p => { allData[p.payment_key] = p.paid; });
+      
+      // Save to localStorage cache
+      try { localStorage.setItem("quantia_cache_"+currentUser.id, JSON.stringify(allData)); } catch(e){}
+    };
+
+    await Promise.race([fetchData(), timeout]);
+    // Re-render with fresh data
+    render();
+
+  } catch(e){ 
+    console.error("loadUserData error",e);
+    // If fetch failed but we have cache, we already rendered - just continue
+  }
 }
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
 function fmt(n){return(parseFloat(n)||0).toLocaleString("es-MX",{style:"currency",currency:"MXN",maximumFractionDigits:0});}
@@ -1284,22 +1313,7 @@ const authTimeout = setTimeout(() => {
   showLogin();
 }, 8000);
 
-// Listen for auth state changes
-sb.auth.onAuthStateChange(async (event, session) => {
-  clearTimeout(authTimeout);
-  if(session && session.user) {
-    currentUser = session.user;
-    allData = {};
-    await loadUserData();
-    showApp();
-    render();
-    switchPage("mes");
-  } else {
-    showLogin();
-  }
-});
-
-// Also check session immediately (faster than waiting for event on mobile)
+// Check session immediately on load (fastest path for returning users)
 (async () => {
   try {
     const { data: { session } } = await sb.auth.getSession();
@@ -1307,15 +1321,43 @@ sb.auth.onAuthStateChange(async (event, session) => {
       clearTimeout(authTimeout);
       currentUser = session.user;
       allData = {};
-      await loadUserData();
+      await loadUserData(); // handles showApp+render internally if cache exists
+      // If no cache was found, show app now
+      if(document.getElementById("app-loading").style.display !== "none") {
+        showApp();
+        render();
+        switchPage("mes");
+      }
+    } else {
+      clearTimeout(authTimeout);
+      showLogin();
+    }
+  } catch(e) {
+    console.error("getSession error", e);
+    clearTimeout(authTimeout);
+    showLogin();
+  }
+})();
+
+// Listen for auth state changes (handles login/logout events)
+sb.auth.onAuthStateChange(async (event, session) => {
+  if(event === "SIGNED_IN" && session && session.user && !currentUser) {
+    clearTimeout(authTimeout);
+    currentUser = session.user;
+    allData = {};
+    await loadUserData();
+    if(document.getElementById("app-loading").style.display !== "none" || 
+       document.getElementById("login-screen").style.display !== "none") {
       showApp();
       render();
       switchPage("mes");
     }
-  } catch(e) {
-    console.error("getSession error", e);
+  } else if(event === "SIGNED_OUT") {
+    allData = {};
+    currentUser = null;
+    showLogin();
   }
-})();
+});
 </script>
 </body>
 </html>
