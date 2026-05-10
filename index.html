@@ -403,9 +403,10 @@ async function setMD(d){
 }
 
 // Save global data to Supabase
+// accounts y debit se codifican dentro del campo tdc (que sí existe en el schema)
+// para garantizar persistencia aunque no existan columnas accounts/debit en la tabla
 async function setG(d){
   allData._g=d;
-  // Update cache immediately
   if(currentUser) try { localStorage.setItem("quantia_cache_"+currentUser.id, JSON.stringify(allData)); } catch(e){}
   if(!currentUser) return;
   try{
@@ -414,11 +415,9 @@ async function setG(d){
       fg: d.fg||[],
       fi: d.fi||[],
       msi: d.msi||[],
-      tdc: d.tdc||[],
+      tdc: { _accounts: d.accounts||[], _debit: d.debit||null },
       cats_g: d.cats_g||DEFAULT_CATS_G,
       cats_i: d.cats_i||DEFAULT_CATS_I,
-      accounts: d.accounts||[],
-      debit: d.debit||null,
       updated_at: new Date().toISOString()
     }, {onConflict:"user_id"});
   } catch(e){ console.error("setG error",e); }
@@ -467,13 +466,25 @@ async function loadUserData(){
       });
 
       if(gRes.data) {
+        // Decodificar accounts/debit desde el campo tdc (donde se guardan para compatibilidad de schema)
+        // Si tdc es un objeto con _accounts, usar esos valores; si no, usar columnas directas como fallback
+        const rawTdc = gRes.data.tdc;
+        let accounts, debit;
+        if(rawTdc && typeof rawTdc === 'object' && !Array.isArray(rawTdc) && rawTdc._accounts !== undefined) {
+          accounts = rawTdc._accounts||[];
+          debit = rawTdc._debit||null;
+        } else {
+          // Fallback: columnas directas o datos locales ya cargados (protección contra race condition)
+          accounts = Array.isArray(gRes.data.accounts) ? gRes.data.accounts : (allData._g?.accounts||[]);
+          debit = (gRes.data.debit !== undefined && gRes.data.debit !== null) ? gRes.data.debit : (allData._g?.debit||null);
+        }
         allData._g = {
-          fg: gRes.data.fg||[], fi: gRes.data.fi||[], 
-          msi: gRes.data.msi||[], tdc: gRes.data.tdc||[],
+          fg: gRes.data.fg||[], fi: gRes.data.fi||[],
+          msi: gRes.data.msi||[], tdc: [],
           cats_g: gRes.data.cats_g||[...DEFAULT_CATS_G],
           cats_i: gRes.data.cats_i||[...DEFAULT_CATS_I],
-          accounts: gRes.data.accounts||[],
-          debit: gRes.data.debit||null
+          accounts: accounts,
+          debit: debit
         };
       }
 
