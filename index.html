@@ -18,7 +18,7 @@
   --text:#2D2D2D;--text2:#5A5A5A;--text3:#9A9A9A;
   --primary:#1F4E5F;--primary-dim:#E8F4F8;--primary-light:#5DADE2;
   --cta:#FF7A59;--cta-dim:#FFF0EB;
-  --green:#7BAE7F;--green-dim:#EAF5EB;--green-dark:#2E7D32;
+  --green:#3A8C42;--green-dim:#EAF5EB;--green-dark:#2E7D32;
   --red:#E05252;--red-dim:#FDEAEA;
   --orange:#FF9F6E;--orange-dim:#FFF3EE;
   --blue:#1F4E5F;--blue-dim:#E8F4F8;
@@ -291,10 +291,10 @@ input::placeholder{color:var(--text3);}
     <button class="nvbtn" onclick="nextMonth()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg></button>
   </div>
   <div class="srow" id="srow">
-    <div class="scard" style="border-top-color:var(--green)" onclick="setMesFil('ingresos')">
+    <div class="scard" style="border-top-color:var(--green)" onclick="switchPage('mes');setMesFil('ingresos')">
       <div class="slbl">Ingresos</div><div class="sval" id="si" style="color:var(--green)">$0</div><div class="ssub" id="si2"></div>
     </div>
-    <div class="scard" style="border-top-color:var(--red)" onclick="setMesFil('gastos')">
+    <div class="scard" style="border-top-color:var(--red)" onclick="switchPage('mes');setMesFil('gastos')">
       <div class="slbl">Gastos</div><div class="sval" id="sg" style="color:var(--red)">$0</div><div class="ssub" id="sg2"></div>
     </div>
     <div class="scard" id="ahocard" style="border-top-color:var(--primary)" onclick="switchPage('mes');setMesFil('ahorro')">
