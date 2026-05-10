@@ -319,14 +319,7 @@ input::placeholder{color:var(--text3);}
 // CONSTANTS
 // ══════════════════════════════════════
 const MONTHS=["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-const ACCS=[
-  {id:"liverpool",name:"Liverpool",color:"#e63946"},
-  {id:"invex",name:"Invex",color:"#3b82f6"},
-  {id:"nu",name:"Nu",color:"#a855f7"},
-  {id:"amex",name:"Amex",color:"#10b981"},
-  {id:"stori",name:"Stori",color:"#f59e0b"},
-  {id:"efectivo",name:"Efectivo",color:"#64748b"},
-];
+const ACC_COLORS=["#007AFF","#34C759","#FF9500","#FF3B30","#AF52DE","#FF2D55","#5AC8FA","#30D158"];
 const DEFAULT_CATS_G=["Alimentación","Transporte","Vivienda","Salud","Entretenimiento","Suscripciones","Viajes","Educación","Ahorro/Inversión","Deuda","Otro"];
 const DEFAULT_CATS_I=["Sueldo","Bono","Réditos","Ahorro/Inversión","Otro"];
 const AHORRO_CAT="Ahorro/Inversión";
@@ -367,7 +360,7 @@ function getMD(){
 }
 
 function getG(){
-  if(!allData._g)allData._g={fg:[],fi:[],msi:[],tdc:[],cats_g:[...DEFAULT_CATS_G],cats_i:[...DEFAULT_CATS_I]};
+  if(!allData._g)allData._g={fg:[],fi:[],msi:[],tdc:[],cats_g:[...DEFAULT_CATS_G],cats_i:[...DEFAULT_CATS_I],accounts:[],debit:null};
   if(!allData._g.cats_g)allData._g.cats_g=[...DEFAULT_CATS_G];
   if(!allData._g.cats_i)allData._g.cats_i=[...DEFAULT_CATS_I];
   return allData._g;
@@ -406,6 +399,8 @@ async function setG(d){
       tdc: d.tdc||[],
       cats_g: d.cats_g||DEFAULT_CATS_G,
       cats_i: d.cats_i||DEFAULT_CATS_I,
+      accounts: d.accounts||[],
+      debit: d.debit||null,
       updated_at: new Date().toISOString()
     }, {onConflict:"user_id"});
   } catch(e){ console.error("setG error",e); }
@@ -458,7 +453,9 @@ async function loadUserData(){
           fg: gRes.data.fg||[], fi: gRes.data.fi||[], 
           msi: gRes.data.msi||[], tdc: gRes.data.tdc||[],
           cats_g: gRes.data.cats_g||[...DEFAULT_CATS_G],
-          cats_i: gRes.data.cats_i||[...DEFAULT_CATS_I]
+          cats_i: gRes.data.cats_i||[...DEFAULT_CATS_I],
+          accounts: gRes.data.accounts||[],
+          debit: gRes.data.debit||null
         };
       }
 
@@ -492,7 +489,7 @@ function effG(){
     if(k>=s&&k<=e&&!res.find(x=>x.fijoId===f.id)){
       const isCurrentMonth=k===`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,"0")}`;
       const autoPagado=isCurrentMonth&&shouldAutoMark(f.dueDay);
-      res.push({id:uid(),fijoId:f.id,concepto:f.concepto,monto:f.monto,cuenta:f.cuenta||"Efectivo",tipo:"fijo",categoria:f.categoria||"Otro",pagado:autoPagado,subItems:[],esFuturo:false,fecha:"",_inj:true});
+      res.push({id:uid(),fijoId:f.id,concepto:f.concepto,monto:f.monto,cuenta:f.cuenta||(getDebitAccount()?.name||"Débito"),tipo:"fijo",categoria:f.categoria||"Otro",pagado:autoPagado,subItems:[],esFuturo:false,fecha:"",_inj:true});
     }
   });
   return res;
@@ -702,7 +699,17 @@ function renderMes(){
     const tGtotal=gas.reduce((s,x)=>s+pn(x.monto),0);
     h+=`<div class="seclbl" style="margin-top:${mesFil==="all"?16:0}px">Gastos</div>`;
     if(!gas.length)h+=`<div class="empty">Sin gastos este mes</div>`;
-    ACCS.forEach(acc=>{
+    // Build dynamic accounts list: debit first, then registered TDC
+    const _credits=getCreditAccounts();
+    const _debit=getDebitAccount();
+    const _debitName=_debit?.name||"Débito";
+    const ACCS_DYNAMIC=[
+      {name:_debitName,color:_debit?.color||"#007AFF"},
+      ..._credits.map(a=>({name:a.name,color:a.color||"#FF3B30"})),
+      // Catch-all for any gasto referencing an account not in the list
+      ...Object.keys(byAcc).filter(n=>n!==_debitName&&!_credits.find(c=>c.name===n)).map(n=>({name:n,color:"#64748b"}))
+    ];
+    ACCS_DYNAMIC.forEach(acc=>{
       const items=byAcc[acc.name];if(!items||!items.length)return;
       const at=items.reduce((s,g)=>s+pn(g.monto),0);
       h+=`<div class="card"><div class="acchdr"><div class="acchdrl"><div class="dot" style="background:${acc.color}"></div><span class="acchdrname">${acc.name}</span></div><span style="font-family:Syne,sans-serif;font-size:12px;font-weight:800;color:${acc.color}">${fmt(at)}</span></div>`;
@@ -791,13 +798,17 @@ function getCatColor(cat){const map={"Alimentación":"#FF9F6E","Transporte":"#5D
 // ── GASTOS CRUD ──
 function togG(idx){const all=effG(),item={...all[idx]};item.pagado=!item.pagado;persistItem(item,"g");renderContent();}
 function delG(idx){const all=effG(),item=all[idx];if(item.pagado)return;const md=getMD();if(item.fijoId){const i=md.gastos.findIndex(x=>x.fijoId===item.fijoId);if(i>=0)md.gastos.splice(i,1);}else{const i=md.gastos.findIndex(x=>x.id===item.id);if(i>=0)md.gastos.splice(i,1);}setMD(md);renderContent();}
-function openAddG(){editId=null;pendSubs=[];showGForm({cuenta:"Liverpool",concepto:"",monto:"",tipo:"variable",categoria:"",pagado:false,esFuturo:false,fecha:"",subItems:[]});}
-function openAddGAho(){editId=null;pendSubs=[];showGForm({cuenta:"Amex",concepto:"",monto:"",tipo:"variable",categoria:AHORRO_CAT,pagado:false,esFuturo:false,fecha:"",subItems:[]});}
+function openAddG(){editId=null;pendSubs=[];const firstCredit=getCreditAccounts()[0];showGForm({cuenta:firstCredit?firstCredit.name:"Débito",concepto:"",monto:"",tipo:"variable",categoria:"",pagado:false,esFuturo:false,fecha:"",subItems:[]});}
+function openAddGAho(){editId=null;pendSubs=[];const firstCredit=getCreditAccounts()[0];showGForm({cuenta:firstCredit?firstCredit.name:"Débito",concepto:"",monto:"",tipo:"variable",categoria:AHORRO_CAT,pagado:false,esFuturo:false,fecha:"",subItems:[]});}
 function editG(idx){const all=effG(),item=all[idx];editId=item.id||null;pendSubs=[...(item.subItems||[])];showGForm({...item});}
 function showGForm(item){
   const g=getG();
-  const accs=getAccounts();
-  const ao=accs.length?accs.map(a=>`<option value="${esc(a.name)}" ${a.name===item.cuenta?"selected":""}>${esc(a.name)}${a.lastFour?" ···"+a.lastFour:""}${a.isDefault?" ★":""}</option>`).join(""):`<option value="">Sin cuentas — agrega en Cuentas</option>`;
+  const credits=getCreditAccounts();
+  const debit=getDebitAccount();
+  const debitName=debit?.name||"Débito";
+  const ao=credits.length
+    ?[`<option value="${esc(debitName)}" ${item.cuenta===debitName||(!credits.find(c=>c.name===item.cuenta)&&!item.cuenta)?"selected":""}>${esc(debitName)}</option>`,...credits.map(a=>`<option value="${esc(a.name)}" ${a.name===item.cuenta?"selected":""}>${esc(a.name)}${a.lastFour?" ···"+a.lastFour:""}</option>`)].join("")
+    :`<option value="${esc(debitName)}">${esc(debitName)} (sin TDC registradas)</option>`;
   const co=(g.cats_g||DEFAULT_CATS_G).map(c=>`<option ${c===item.categoria?"selected":""}>${c}</option>`).join("");
   document.getElementById("mbody").innerHTML=`<div class="mhandle"></div><div class="fcol">
     <h3 class="mtitle">${editId?"Editar":"Nuevo"} Gasto</h3>
@@ -878,8 +889,6 @@ function showIForm(item){
       <div><label class="lbl">Tipo</label><select id="it"><option value="variable" ${item.tipo!=="fijo"?"selected":""}>Variable</option><option value="fijo" ${item.tipo==="fijo"?"selected":""}>Fijo</option></select></div>
       <div><label class="lbl">Categoría</label><select id="icat"><option value="">— Sin categoría —</option>${co}</select></div>
     </div>
-    <label class="lbl">Cuenta destino</label>
-    <select id="icuenta"><option value="">— Sin cuenta —</option>${ao}</select>
     <div class="chkrow">
       <label class="clbl"><input type="checkbox" id="ir" ${item.recibido?"checked":""}> Recibido</label>
       <label class="clbl"><input type="checkbox" id="ifu" ${item.esFuturo?"checked":""}> Futuro</label>
@@ -907,7 +916,7 @@ function renderFijos(){
     const catColor=getCatColor(item.categoria);
     h+=`<div class="card"><div class="irow">
       <div class="ileft"><div class="iname">${esc(item.concepto)}<span class="bdg bdg-fijo">fijo</span>${item.categoria?`<span class="cat-pill" style="background:${catColor}22;color:${catColor}">${item.categoria}</span>`:""}</div>
-      <div class="imeta">${item.cuenta||"Efectivo"} · ${item.dueDay?`día ${item.dueDay} · `:""}desde ${item.fi||"siempre"}${item.ff?` hasta ${item.ff}`:""}</div></div>
+      <div class="imeta">${item.cuenta||getDebitAccount()?.name||"Débito"} · ${item.dueDay?`día ${item.dueDay} · `:""}desde ${item.fi||"siempre"}${item.ff?` hasta ${item.ff}`:""}</div></div>
       <span class="iamt" style="color:var(--red)">${fmt(item.monto)}/mes</span>
       <div class="iacts"><button class="abtn" onclick="editFG(${idx})">${ICO.edit}</button><button class="abtn" onclick="delFG(${idx})">${ICO.del}</button></div>
     </div></div>`;
@@ -927,11 +936,13 @@ function renderFijos(){
   h+=`<button class="fab" onclick="openAddFI()">${ICO.plus} Ingreso fijo</button>`;
   return h;
 }
-function openAddFG(){editId=null;showFGForm({concepto:"",monto:"",cuenta:"Efectivo",categoria:"",fi:"",ff:""});}
+function openAddFG(){editId=null;showFGForm({concepto:"",monto:"",cuenta:"",categoria:"",fi:"",ff:""});}
 function editFG(idx){editId=idx;showFGForm({...getG().fg[idx]});}
 function showFGForm(item){
   const g=getG();
-  const ao=ACCS.map(a=>`<option ${a.name===(item.cuenta||"Efectivo")?"selected":""}>${a.name}</option>`).join("");
+  const credits=getCreditAccounts();
+  const debitName=getDebitAccount()?.name||"Débito";
+  const ao=[`<option value="${esc(debitName)}" ${(!item.cuenta||item.cuenta===debitName||!credits.find(c=>c.name===item.cuenta))?"selected":""}>${esc(debitName)}</option>`,...credits.map(a=>`<option value="${esc(a.name)}" ${a.name===item.cuenta?"selected":""}>${esc(a.name)}${a.lastFour?" ···"+a.lastFour:""}</option>`)].join("");
   const co=(g.cats_g||DEFAULT_CATS_G).map(c=>`<option ${c===item.categoria?"selected":""}>${c}</option>`).join("");
   document.getElementById("mbody").innerHTML=`<div class="mhandle"></div><div class="fcol">
     <h3 class="mtitle">${editId!==null?"Editar":"Nuevo"} Gasto Fijo</h3>
@@ -1038,7 +1049,7 @@ function renderMSI(){
   h+=`<button class="fab" onclick="openAddMSI()">${ICO.plus} Agregar MSI</button>`;
   return h;
 }
-function openAddMSI(){editId=null;showMSIForm({concepto:"",total:"",meses:"",cuenta:"Invex",fi:""});}
+function openAddMSI(){editId=null;const firstCredit=getCreditAccounts()[0];showMSIForm({concepto:"",total:"",meses:"",cuenta:firstCredit?firstCredit.name:"",fi:""});}
 function editMSI(idx){editId=idx;showMSIForm({...getG().msi[idx]});}
 function showMSIForm(item){
   const creditAccs=getCreditAccounts();
@@ -1070,41 +1081,44 @@ function delMSI(idx){const g=getG();g.msi.splice(idx,1);setG(g);renderContent();
 // ══════════════════════════════════════
 // CUENTAS PAGE
 // ══════════════════════════════════════
+function getDebitAccount(){const g=getG();return(g.debit)||null;}
+function setDebitAccount(d){const g=getG();g.debit=d;setG(g);}
+
 function renderCuentas(){
   const g=getG(), accounts=g.accounts||[], k=key();
-  const debits=accounts.filter(a=>a.type==="debit");
   const credits=accounts.filter(a=>a.type==="credit");
-  let h="";
-  h+=`<div class="seclbl">Cuentas de Débito</div>`;
-  if(!debits.length)h+=`<div class="empty">Sin cuentas de débito — agrega una para empezar</div>`;
-  debits.forEach((acc,di)=>{
-    const ri=accounts.indexOf(acc);
-    const ingMes=effI().filter(i=>i.cuenta===acc.name).reduce((s,i)=>s+pn(i.monto),0);
-    const gasMes=effG().filter(g=>g.cuenta===acc.name&&!isAhoCat(g)).reduce((s,g)=>s+pn(g.monto),0);
-    const moves=[...effI().filter(i=>i.cuenta===acc.name),...effG().filter(g=>g.cuenta===acc.name)];
-    h+=`<div class="card" style="border-radius:16px;margin-bottom:10px">
-      <div style="display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer" onclick="togDrop('dd${di}')">
-        <div style="width:42px;height:42px;border-radius:12px;background:${acc.color||"#007AFF"};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;flex-shrink:0">${(acc.name||"?")[0].toUpperCase()}</div>
-        <div style="flex:1">
-          <div style="font-size:15px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px">${esc(acc.name)}${acc.lastFour?`<span style="font-size:12px;color:var(--text3);font-weight:400">···${acc.lastFour}</span>`:""}${acc.isDefault?` <span style="font-size:11px;color:var(--yellow)">★ Default</span>`:""}</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:2px">Débito · +${fmt(ingMes)} ingresos este mes</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-size:18px;font-weight:800;color:${(acc.balance||0)>=0?"var(--green)":"var(--red)"};letter-spacing:-0.5px">${fmt(acc.balance||0)}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px">Saldo actual</div>
-        </div>
+  const debit=getDebitAccount();
+  // Saldo calculado: ingresos recibidos - gastos de débito pagados
+  const ingRec=effI().filter(x=>x.recibido).reduce((s,x)=>s+pn(x.monto),0);
+  const gasDebPag=effG().filter(x=>x.pagado&&!credits.find(c=>c.name===x.cuenta)).reduce((s,x)=>s+pn(x.monto),0);
+  const saldoCalc=ingRec-gasDebPag;
+  const ajuste=debit?.saldoAjuste||0;
+  const saldoFinal=saldoCalc+ajuste;
+  // Movimientos del mes para débito
+  const movIng=effI();
+  const movGas=effG().filter(x=>!credits.find(c=>c.name===x.cuenta));
+  let h=`<div class="seclbl">Cuenta de Débito</div>`;
+  h+=`<div class="card" style="border-radius:16px;margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:12px;padding:14px;cursor:pointer" onclick="togDrop('debit-det')">
+      <div style="width:42px;height:42px;border-radius:12px;background:${debit?.color||"#007AFF"};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;flex-shrink:0">${((debit?.name)||"B")[0].toUpperCase()}</div>
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px">${esc(debit?.name||"Mi Cuenta")}${debit?.lastFour?`<span style="font-size:12px;color:var(--text3);font-weight:400">···${debit.lastFour}</span>`:""}</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px">+${fmt(ingRec)} ingresos · -${fmt(gasDebPag)} gastos${ajuste!==0?` · ajuste ${fmt(ajuste)}`:""}</div>
       </div>
-      <div id="dd${di}" style="display:none;background:var(--surface2);border-top:1px solid var(--border);padding:12px 14px">
-        <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Movimientos ${MONTHS[M]} ${Y}</div>
-        ${moves.length?moves.map(m=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text2)">${esc(m.concepto)}</span><span style="font-weight:600;color:${m.recibido!==undefined?(m.recibido?"var(--green)":"var(--text3)"):(m.pagado?"var(--red)":"var(--text3)")}">${m.recibido!==undefined?"+":"-"}${fmt(m.monto)}</span></div>`).join(""):`<div style="color:var(--text3);font-size:13px;padding:6px 0">Sin movimientos este mes</div>`}
-        <div style="display:flex;gap:8px;margin-top:12px">
-          <button onclick="editAccount(${ri})" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text2);font-size:13px;font-weight:500;font-family:var(--font)">Editar</button>
-          <button onclick="updateBalance(${ri})" style="flex:1;background:var(--primary-dim);border:1px solid var(--primary);border-radius:10px;padding:10px;color:var(--primary);font-size:13px;font-weight:600;font-family:var(--font)">Actualizar saldo</button>
-        </div>
+      <div style="text-align:right">
+        <div style="font-size:18px;font-weight:800;color:${saldoFinal>=0?"var(--green)":"var(--red)"};letter-spacing:-0.5px">${fmt(saldoFinal)}</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">Saldo del mes</div>
       </div>
-    </div>`;
-  });
-  h+=`<button class="fab" onclick="openAddAccount('debit')">${ICO.plus} Cuenta de débito</button>`;
+    </div>
+    <div id="debit-det" style="display:none;background:var(--surface2);border-top:1px solid var(--border);padding:12px 14px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Movimientos ${MONTHS[M]} ${Y}</div>
+      ${(movIng.length||movGas.length)?[...movIng.map(m=>({...m,_t:"i"})),...movGas.map(m=>({...m,_t:"g"}))].map(m=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px"><span style="color:var(--text2)">${esc(m.concepto)}</span><span style="font-weight:600;color:${m._t==="i"?"var(--green)":"var(--red)"}">${m._t==="i"?"+":"-"}${fmt(m.monto)}</span></div>`).join(""):`<div style="color:var(--text3);font-size:13px;padding:6px 0">Sin movimientos este mes</div>`}
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button onclick="openEditDebit()" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text2);font-size:13px;font-weight:500;font-family:var(--font)">Editar cuenta</button>
+        <button onclick="openAjusteSaldo()" style="flex:1;background:var(--primary-dim);border:1px solid var(--primary);border-radius:10px;padding:10px;color:var(--primary);font-size:13px;font-weight:600;font-family:var(--font)">Ajustar saldo</button>
+      </div>
+    </div>
+  </div>`;
 
   h+=`<div class="seclbl" style="margin-top:20px">Tarjetas de Crédito — ${MONTHS[M]} ${Y}</div>`;
   if(!credits.length)h+=`<div class="empty">Sin tarjetas de crédito configuradas</div>`;
@@ -1118,7 +1132,7 @@ function renderCuentas(){
         <div style="width:42px;height:42px;border-radius:12px;background:${acc.color||"#FF3B30"};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;flex-shrink:0">${(acc.name||"?")[0].toUpperCase()}</div>
         <div style="flex:1">
           <div style="font-size:15px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:6px">${esc(acc.name)}${acc.lastFour?`<span style="font-size:12px;color:var(--text3);font-weight:400">···${acc.lastFour}</span>`:""}</div>
-          <div style="font-size:12px;color:var(--text3);margin-top:2px">Corte día ${acc.cutDay||"—"} · Pago día ${acc.payDay||"—"}${acc.annualFee?` · Anualidad ${fmt(acc.annualFee)}`:""}}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">Corte día ${acc.cutDay||"—"} · Pago día ${acc.payDay||"—"}${acc.annualFee?` · Anualidad ${fmt(acc.annualFee)}`:""}</div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
           <div style="font-size:17px;font-weight:800;color:${paid?"var(--green)":"var(--red)"};letter-spacing:-0.5px">${fmt(gastosMes)}</div>
@@ -1146,39 +1160,58 @@ async function togTDCP(accId,k){
   const pkey=k+"-tdc-"+accId;
   const wasPaid=allData[pkey]||false;
   allData[pkey]=!wasPaid;
-  if(allData[pkey]){
-    const acc=getAccounts().find(a=>a.id===accId);
-    const def=getDefaultDebit();
-    if(acc&&def){
-      const total=effG().filter(g=>g.cuenta===acc.name).reduce((s,g)=>s+pn(g.monto),0);
-      updateAccountBalance(def.name,-total);
-    }
-  }else{
-    const acc=getAccounts().find(a=>a.id===accId);
-    const def=getDefaultDebit();
-    if(acc&&def){
-      const total=effG().filter(g=>g.cuenta===acc.name).reduce((s,g)=>s+pn(g.monto),0);
-      updateAccountBalance(def.name,total);
-    }
+  // Descuenta o restaura en saldoAjuste de la cuenta débito
+  const acc=getAccounts().find(a=>a.id===accId);
+  if(acc){
+    const total=effG().filter(g=>g.cuenta===acc.name).reduce((s,g)=>s+pn(g.monto),0);
+    const d=getDebitAccount()||{};
+    setDebitAccount({...d,saldoAjuste:(d.saldoAjuste||0)+(allData[pkey]?-total:total)});
   }
   cacheData();
   await saveTDCPayment(pkey,allData[pkey]);
   renderContent();
 }
 
-function updateBalance(idx){
-  const acc=getG().accounts[idx];
+function openEditDebit(){
+  const d=getDebitAccount()||{name:"Mi Cuenta",lastFour:"",color:"#007AFF"};
+  const colorBtns=ACC_COLORS.map(c=>`<button onclick="selAccColor('${c}')" id="acb${c.replace('#','')}" style="width:32px;height:32px;border-radius:50%;background:${c};border:${(d.color||ACC_COLORS[0])===c?"3px solid var(--text)":"2px solid transparent"};cursor:pointer;flex-shrink:0"></button>`).join("");
+  window._accColor=d.color||ACC_COLORS[0];
   document.getElementById("mbody").innerHTML=`<div class="mhandle"></div><div class="fcol">
-    <h3 class="mtitle">Actualizar saldo</h3>
-    <p style="color:var(--text2);font-size:14px">${esc(acc.name)} — Saldo actual: <strong>${fmt(acc.balance||0)}</strong></p>
-    <label class="lbl">Nuevo saldo ($)</label>
-    <input type="number" id="nb" value="${acc.balance||0}" placeholder="0">
-    <button class="bp" onclick="saveNewBal(${idx})">Guardar</button>
+    <h3 class="mtitle">Editar cuenta de débito</h3>
+    <label class="lbl">Nombre</label><input type="text" id="dbn" value="${esc(d.name)}" placeholder="Ej. BBVA, Nu...">
+    <label class="lbl">Últimos 4 dígitos (opcional)</label><input type="number" id="db4" value="${d.lastFour||""}" placeholder="1234">
+    <label class="lbl">Color</label><div style="display:flex;gap:8px;flex-wrap:wrap">${colorBtns}</div>
+    <button class="bp" onclick="saveDebitAccount()">Guardar</button>
     <button class="bg" onclick="closeModal()">Cancelar</button>
   </div>`;
   document.getElementById("overlay").style.display="flex";
 }
-function saveNewBal(idx){const g=getG();g.accounts[idx].balance=pn(document.getElementById("nb").value);setG(g);closeModal();renderContent();}
+function saveDebitAccount(){
+  const name=document.getElementById("dbn").value.trim();
+  if(!name){alert("El nombre es obligatorio");return;}
+  const d=getDebitAccount()||{};
+  setDebitAccount({...d,name,lastFour:document.getElementById("db4").value||"",color:window._accColor||"#007AFF"});
+  closeModal();renderContent();
+}
+function openAjusteSaldo(){
+  const d=getDebitAccount()||{};
+  const ajuste=d.saldoAjuste||0;
+  document.getElementById("mbody").innerHTML=`<div class="mhandle"></div><div class="fcol">
+    <h3 class="mtitle">Ajustar saldo</h3>
+    <p style="color:var(--text2);font-size:13px;line-height:1.5">El saldo se calcula automáticamente. Usa este ajuste para corregir diferencias con tu saldo real en banco.</p>
+    <label class="lbl">Ajuste manual ($)</label>
+    <input type="number" id="saj" value="${ajuste}" placeholder="0">
+    <p style="font-size:11px;color:var(--text3);margin-top:-4px">Positivo para aumentar, negativo para disminuir.</p>
+    <button class="bp" onclick="saveAjusteSaldo()">Guardar</button>
+    <button class="bg" onclick="closeModal()">Cancelar</button>
+  </div>`;
+  document.getElementById("overlay").style.display="flex";
+}
+function saveAjusteSaldo(){
+  const d=getDebitAccount()||{};
+  setDebitAccount({...d,saldoAjuste:pn(document.getElementById("saj").value)});
+  closeModal();renderContent();
+}
 
 function openAddAccount(type){editId=null;showAccForm({type,name:"",color:ACC_COLORS[(getAccounts().length)%ACC_COLORS.length],lastFour:"",isDefault:false,balance:0,cutDay:"",payDay:"",annualFee:"",annualFeeDate:""});}
 function editAccount(idx){editId=idx;showAccForm({...getG().accounts[idx]});}
