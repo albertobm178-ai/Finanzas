@@ -59,7 +59,7 @@ input::placeholder{color:var(--text3);}
 .srow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding-bottom:10px;}
 .scard{background:var(--surface2);border-radius:10px;padding:9px 8px 7px;border-top:2px solid transparent;cursor:pointer;}
 .slbl{font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;}
-.sval{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter',sans-serif;font-weight:700;font-size:12px;font-weight:800;margin-top:2px;}
+.sval{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','Inter',sans-serif;font-weight:700;font-size:24px;font-weight:800;margin-top:2px;}
 .ssub{font-size:9px;color:var(--text3);margin-top:1px;}
 
 /* BOTTOM NAV */
@@ -219,6 +219,24 @@ input::placeholder{color:var(--text3);}
 .spinner { width:24px;height:24px;border:3px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto; }
 @keyframes spin { to { transform:rotate(360deg); } }
 #app-loading { position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:300; }
+
+/* ── RESPONSIVE ── */
+@media (min-width: 640px) {
+  body { max-width: 640px; }
+  #bnav { max-width: 640px; }
+  .overlay { align-items: center; }
+  .modal { border-radius: 22px; max-width: 520px; margin: 0 auto; }
+}
+@media (min-width: 1024px) {
+  body { max-width: 980px; padding-bottom: 80px; }
+  #bnav { max-width: 980px; }
+  .sval { font-size: 26px; }
+  .scard { padding: 11px 12px 9px; }
+}
+@media (min-width: 1400px) {
+  body { max-width: 1200px; }
+  #bnav { max-width: 1200px; }
+}
 
 </style>
 </head>
@@ -521,23 +539,25 @@ function isAhoCat(item){return(item.categoria||"")=== AHORRO_CAT;}
 
 // Account helpers
 function getAccounts(){return(getG().accounts||[]);}
-function getAccByName(name){return getAccounts().find(a=>a.name===name)||null;}
+function getAccByName(name){const n=String(name||"").trim();return getAccounts().find(a=>String(a.name||"").trim()===n)||null;}
 function getDefaultDebit(){return getAccounts().find(a=>a.type==="debit"&&a.isDefault)||getAccounts().find(a=>a.type==="debit")||null;}
 function getCreditAccounts(){return getAccounts().filter(a=>a.type==="credit");}
 function getDebitAccounts(){return getAccounts().filter(a=>a.type==="debit");}
 
 // Get gasto target month based on account cut date
+// Option B: always show credit expenses in the month they need to be PAID
+// Before/on cut → closes this month → payment next month (+1)
+// After cut     → closes next month → payment month after next (+2)
+// No date       → stays in current viewed month
 function getGastoTargetMonth(fecha, cuentaName){
   if(!fecha) return key();
   const acc=getAccByName(cuentaName);
   if(!acc||acc.type!=="credit"||!acc.cutDay) return fecha.slice(0,7);
   const [gy,gm,gd]=fecha.split("-").map(Number);
   const cutDay=parseInt(acc.cutDay);
-  if(gd>cutDay){
-    const nd=new Date(gy,gm-1+1,1);
-    return nd.getFullYear()+"-"+String(nd.getMonth()+1).padStart(2,"0");
-  }
-  return gy+"-"+String(gm).padStart(2,"0");
+  const monthsToAdd=gd<=cutDay?1:2;
+  const nd=new Date(gy,gm-1+monthsToAdd,1);
+  return nd.getFullYear()+"-"+String(nd.getMonth()+1).padStart(2,"0");
 }
 
 // Auto-mark fijos based on today's day
@@ -652,7 +672,7 @@ function renderMes(){
           const subtotal=lastTipo==="fijo"?tIF:tIV;
           h+=`<div style="display:flex;justify-content:space-between;padding:8px 4px 4px;border-top:1px dashed var(--border2)">
             <span style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Subtotal ${lastTipo==="fijo"?"Fijos":"Variables"}</span>
-            <span style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:var(--green)">${fmt(subtotal)}</span>
+            <span style="font-size:13px;font-weight:800;color:var(--green)">${fmt(subtotal)}</span>
           </div>`;
         }
         h+=`<div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:1px;padding:10px 2px 4px">${curTipo==="fijo"?"— Fijos":"— Variables"}</div>`;
@@ -678,7 +698,7 @@ function renderMes(){
       const subtotal=lastTipo==="fijo"?tIF:tIV;
       h+=`<div style="display:flex;justify-content:space-between;padding:8px 4px 4px;border-top:1px dashed var(--border2)">
         <span style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Subtotal ${lastTipo==="fijo"?"Fijos":"Variables"}</span>
-        <span style="font-family:Syne,sans-serif;font-size:13px;font-weight:800;color:var(--green)">${fmt(subtotal)}</span>
+        <span style="font-size:13px;font-weight:800;color:var(--green)">${fmt(subtotal)}</span>
       </div>`;
     }
     if(mesFil==="ingresos"||mesFil==="all"){
@@ -711,7 +731,7 @@ function renderMes(){
     ACCS_DYNAMIC.forEach(acc=>{
       const items=byAcc[acc.name];if(!items||!items.length)return;
       const at=items.reduce((s,g)=>s+pn(g.monto),0);
-      h+=`<div class="card"><div class="acchdr"><div class="acchdrl"><div class="dot" style="background:${acc.color}"></div><span class="acchdrname">${acc.name}</span></div><span style="font-family:Syne,sans-serif;font-size:12px;font-weight:800;color:${acc.color}">${fmt(at)}</span></div>`;
+      h+=`<div class="card"><div class="acchdr"><div class="acchdrl"><div class="dot" style="background:${acc.color}"></div><span class="acchdrname">${acc.name}</span></div><span style="font-size:12px;font-weight:800;color:${acc.color}">${fmt(at)}</span></div>`;
       const gFijos=items.filter(x=>x.tipo==="fijo");
       const gVars=items.filter(x=>x.tipo!=="fijo");
       const tGF=gFijos.reduce((s,x)=>s+pn(x.monto),0);
@@ -726,7 +746,7 @@ function renderMes(){
             const st=lastGTipo==="fijo"?tGF:tGV;
             h+=`<div style="display:flex;justify-content:space-between;padding:6px 14px 4px;border-top:1px dashed var(--border2);background:var(--surface2)">
               <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Subtotal ${lastGTipo==="fijo"?"Fijos":"Variables"}</span>
-              <span style="font-family:Syne,sans-serif;font-size:12px;font-weight:800;color:var(--red)">${fmt(st)}</span>
+              <span style="font-size:12px;font-weight:800;color:var(--red)">${fmt(st)}</span>
             </div>`;
           }
           h+=`<div style="font-size:10px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;padding:6px 14px 2px;background:var(--surface2)">${curTipo==="fijo"?"Fijos":"Variables"}</div>`;
@@ -753,7 +773,7 @@ function renderMes(){
         const st=lastGTipo==="fijo"?tGF:tGV;
         h+=`<div style="display:flex;justify-content:space-between;padding:6px 14px 4px;border-top:1px dashed var(--border2);background:var(--surface2)">
           <span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px">Subtotal ${lastGTipo==="fijo"?"Fijos":"Variables"}</span>
-          <span style="font-family:Syne,sans-serif;font-size:12px;font-weight:800;color:var(--red)">${fmt(st)}</span>
+          <span style="font-size:12px;font-weight:800;color:var(--red)">${fmt(st)}</span>
         </div>`;
       }
       h+=`</div>`;
