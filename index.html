@@ -525,7 +525,6 @@ function getAccByName(name){return getAccounts().find(a=>a.name===name)||null;}
 function getDefaultDebit(){return getAccounts().find(a=>a.type==="debit"&&a.isDefault)||getAccounts().find(a=>a.type==="debit")||null;}
 function getCreditAccounts(){return getAccounts().filter(a=>a.type==="credit");}
 function getDebitAccounts(){return getAccounts().filter(a=>a.type==="debit");}
-const ACC_COLORS=["#007AFF","#34C759","#FF9500","#FF3B30","#AF52DE","#FF2D55","#5AC8FA","#30D158"];
 
 // Get gasto target month based on account cut date
 function getGastoTargetMonth(fecha, cuentaName){
@@ -809,7 +808,7 @@ function showGForm(item){
   const ao=credits.length
     ?[`<option value="${esc(debitName)}" ${item.cuenta===debitName||(!credits.find(c=>c.name===item.cuenta)&&!item.cuenta)?"selected":""}>${esc(debitName)}</option>`,...credits.map(a=>`<option value="${esc(a.name)}" ${a.name===item.cuenta?"selected":""}>${esc(a.name)}${a.lastFour?" ···"+a.lastFour:""}</option>`)].join("")
     :`<option value="${esc(debitName)}">${esc(debitName)} (sin TDC registradas)</option>`;
-  const co=(g.cats_g||DEFAULT_CATS_G).map(c=>`<option ${c===item.categoria?"selected":""}>${c}</option>`).join("");
+  const co=(g.cats_g||DEFAULT_CATS_G).map(c=>`<option value="${esc(c)}" ${c===item.categoria?"selected":""}>${esc(c)}</option>`).join("");
   document.getElementById("mbody").innerHTML=`<div class="mhandle"></div><div class="fcol">
     <h3 class="mtitle">${editId?"Editar":"Nuevo"} Gasto</h3>
     <label class="lbl">Cuenta</label><select id="gc">${ao}</select>
@@ -855,7 +854,7 @@ async function saveG(){
   if(targetMonth!==key()&&!editId&&fecha){
     if(!allData[targetMonth])allData[targetMonth]={gastos:[],ingresos:[]};
     allData[targetMonth].gastos.push(item);
-    cacheData();
+    if(currentUser) try{localStorage.setItem("quantia_cache_"+currentUser.id,JSON.stringify(allData));}catch(e){}
     if(currentUser){
       const td=allData[targetMonth];
       await sb.from("month_data").upsert({user_id:currentUser.id,month_key:targetMonth,gastos:td.gastos,ingresos:td.ingresos,updated_at:new Date().toISOString()},{onConflict:"user_id,month_key"});
@@ -877,7 +876,7 @@ function openAddI(){editId=null;showIForm({concepto:"",monto:"",tipo:"variable",
 function editI(idx){const all=effI(),item=all[idx];editId=item.id||null;showIForm({...item});}
 function showIForm(item){
   const g=getG();
-  const co=(g.cats_i||DEFAULT_CATS_I).map(c=>`<option ${c===item.categoria?"selected":""}>${c}</option>`).join("");
+  const co=(g.cats_i||DEFAULT_CATS_I).map(c=>`<option value="${esc(c)}" ${c===item.categoria?"selected":""}>${esc(c)}</option>`).join("");
   document.getElementById("mbody").innerHTML=`<div class="mhandle"></div><div class="fcol">
     <h3 class="mtitle">${editId?"Editar":"Nuevo"} Ingreso</h3>
     <label class="lbl">Concepto</label><input type="text" id="ic" value="${esc(item.concepto)}" placeholder="Ej. Quincena, Rédito...">
@@ -943,7 +942,7 @@ function showFGForm(item){
   const credits=getCreditAccounts();
   const debitName=getDebitAccount()?.name||"Débito";
   const ao=[`<option value="${esc(debitName)}" ${(!item.cuenta||item.cuenta===debitName||!credits.find(c=>c.name===item.cuenta))?"selected":""}>${esc(debitName)}</option>`,...credits.map(a=>`<option value="${esc(a.name)}" ${a.name===item.cuenta?"selected":""}>${esc(a.name)}${a.lastFour?" ···"+a.lastFour:""}</option>`)].join("");
-  const co=(g.cats_g||DEFAULT_CATS_G).map(c=>`<option ${c===item.categoria?"selected":""}>${c}</option>`).join("");
+  const co=(g.cats_g||DEFAULT_CATS_G).map(c=>`<option value="${esc(c)}" ${c===item.categoria?"selected":""}>${esc(c)}</option>`).join("");
   document.getElementById("mbody").innerHTML=`<div class="mhandle"></div><div class="fcol">
     <h3 class="mtitle">${editId!==null?"Editar":"Nuevo"} Gasto Fijo</h3>
     <label class="lbl">Concepto</label><input type="text" id="fgc" value="${esc(item.concepto)}" placeholder="Ej. Renta...">
@@ -977,7 +976,7 @@ function openAddFI(){editId=null;showFIForm({concepto:"",monto:"",categoria:"",f
 function editFI(idx){editId=idx;showFIForm({...getG().fi[idx]});}
 function showFIForm(item){
   const g=getG();
-  const co=(g.cats_i||DEFAULT_CATS_I).map(c=>`<option ${c===item.categoria?"selected":""}>${c}</option>`).join("");
+  const co=(g.cats_i||DEFAULT_CATS_I).map(c=>`<option value="${esc(c)}" ${c===item.categoria?"selected":""}>${esc(c)}</option>`).join("");
   document.getElementById("mbody").innerHTML=`<div class="mhandle"></div><div class="fcol">
     <h3 class="mtitle">${editId!==null?"Editar":"Nuevo"} Ingreso Fijo</h3>
     <label class="lbl">Concepto</label><input type="text" id="fic" value="${esc(item.concepto)}" placeholder="Ej. Quincena...">
@@ -1082,7 +1081,7 @@ function delMSI(idx){const g=getG();g.msi.splice(idx,1);setG(g);renderContent();
 // CUENTAS PAGE
 // ══════════════════════════════════════
 function getDebitAccount(){const g=getG();return(g.debit)||null;}
-function setDebitAccount(d){const g=getG();g.debit=d;setG(g);}
+function setDebitAccount(d){const g=getG();g.debit=d;return setG(g);}
 
 function renderCuentas(){
   const g=getG(), accounts=g.accounts||[], k=key();
@@ -1165,9 +1164,9 @@ async function togTDCP(accId,k){
   if(acc){
     const total=effG().filter(g=>g.cuenta===acc.name).reduce((s,g)=>s+pn(g.monto),0);
     const d=getDebitAccount()||{};
-    setDebitAccount({...d,saldoAjuste:(d.saldoAjuste||0)+(allData[pkey]?-total:total)});
+    await setDebitAccount({...d,saldoAjuste:(d.saldoAjuste||0)+(allData[pkey]?-total:total)});
   }
-  cacheData();
+  if(currentUser) try{localStorage.setItem("quantia_cache_"+currentUser.id,JSON.stringify(allData));}catch(e){}
   await saveTDCPayment(pkey,allData[pkey]);
   renderContent();
 }
@@ -1209,7 +1208,8 @@ function openAjusteSaldo(){
 }
 function saveAjusteSaldo(){
   const d=getDebitAccount()||{};
-  setDebitAccount({...d,saldoAjuste:pn(document.getElementById("saj").value)});
+  const raw=parseFloat(document.getElementById("saj").value)||0;
+  setDebitAccount({...d,saldoAjuste:raw});
   closeModal();renderContent();
 }
 
@@ -1453,7 +1453,7 @@ function delCat(type,idx){
   if(type==="g")g.cats_g.splice(idx,1);else g.cats_i.splice(idx,1);
   setG(g);openSettings();
 }
-function confirmClear(){if(confirm("¿Borrar TODOS los datos? Esta acción no se puede deshacer.")){localStorage.removeItem(SK);allData={};closeModal();render();}}
+function confirmClear(){if(confirm("¿Borrar TODOS los datos? Esta acción no se puede deshacer.")){if(currentUser)localStorage.removeItem("quantia_cache_"+currentUser.id);localStorage.removeItem(SK);allData={};closeModal();render();}}
 function closeModal(){document.getElementById("overlay").style.display="none";}
 function esc(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
 
@@ -1510,6 +1510,7 @@ async function doForgotPassword() {
 }
 
 async function doSignOut() {
+  if(currentUser) try{localStorage.removeItem("quantia_cache_"+currentUser.id);}catch(e){}
   await sb.auth.signOut();
   allData = {};
   currentUser = null;
