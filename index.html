@@ -724,6 +724,13 @@ function effG(){
       res.push({id:uid(),fijoId:f.id,concepto:f.concepto,monto:f.monto,cuenta:f.cuenta||(getDebitAccount()?.name||"Débito"),tipo:"fijo",categoria:f.categoria||"Otro",pagado:autoPagado,subItems:[],esFuturo:false,fecha:"",_inj:true});
     }
   });
+  // TDC-level flag is the authoritative source: if the whole TDC is paid,
+  // treat ALL its movements as paid regardless of month_data state.
+  const creditAccs=(g.accounts||[]).filter(a=>a.type==="credit");
+  res.forEach(gasto=>{
+    const acc=creditAccs.find(a=>String(a.name||"").trim()===String(gasto.cuenta||"").trim());
+    if(acc&&allData[k+"-tdc-"+acc.id]===true) gasto.pagado=true;
+  });
   return res;
 }
 function effI(){
@@ -748,6 +755,12 @@ function effGForKey(k){
     const s=f.fi||"2020-01",e=f.ff||"2099-12";
     if(k>=s&&k<=e&&!res.find(x=>x.fijoId===f.id)&&!res.find(x=>x.fijoId===f.id&&x._skip))
       res.push({fijoId:f.id,concepto:f.concepto,monto:f.monto,cuenta:f.cuenta||(getDebitAccount()?.name||"Débito"),tipo:"fijo",categoria:f.categoria||"Otro",pagado:k===nowKey&&shouldAutoMark(f.dueDay),subItems:[],fecha:""});
+  });
+  // Apply TDC-level payment override (same logic as effG)
+  const creditAccs=(g.accounts||[]).filter(a=>a.type==="credit");
+  res.forEach(gasto=>{
+    const acc=creditAccs.find(a=>String(a.name||"").trim()===String(gasto.cuenta||"").trim());
+    if(acc&&allData[k+"-tdc-"+acc.id]===true) gasto.pagado=true;
   });
   return res;
 }
