@@ -390,7 +390,10 @@ input::placeholder{color:var(--text3);}
 .fijo-sec-lbl{font-size:10px;font-weight:800;letter-spacing:1px;color:var(--text3);white-space:nowrap;}
 .fijo-ghost{opacity:0.42;}
 .fijo-ghost .card{background:var(--surface2) !important;}
+.fijo-upcoming{opacity:0.75;}
+.fijo-upcoming .card{border-style:dashed;}
 .bdg-done{background:var(--surface2);color:var(--text3);border:1px solid var(--border);font-size:9px;padding:1px 6px;border-radius:8px;font-weight:600;vertical-align:middle;margin-left:4px;}
+.bdg-upcoming{background:var(--blue-dim);color:var(--blue);border:1px solid rgba(21,101,192,0.3);font-size:9px;padding:1px 6px;border-radius:8px;font-weight:600;vertical-align:middle;margin-left:4px;}
 .ana-table{border-radius:12px;overflow:hidden;border:1px solid var(--border);margin-bottom:16px;}
 .ana-row{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr;padding:9px 12px;border-bottom:1px solid var(--border);gap:4px;}
 .ana-row:last-child{border-bottom:none;}
@@ -1345,8 +1348,10 @@ function renderFijos(){
   const nowKey=`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,"0")}`;
   const fgAll=g.fg||[],fiAll=g.fi||[];
   const isAct=(f)=>{const s=f.fi||"2020-01",e=f.ff||"2099-12";return nowKey>=s&&nowKey<=e;};
-  const fgActive=fgAll.filter(isAct),fgDone=fgAll.filter(f=>!isAct(f));
-  const fiActive=fiAll.filter(isAct),fiDone=fiAll.filter(f=>!isAct(f));
+  const isUpcoming=(f)=>{const s=f.fi||"2020-01";return s>nowKey;};
+  const isDone=(f)=>{const e=f.ff||"2099-12";return e<nowKey;};
+  const fgActive=fgAll.filter(isAct),fgUpcoming=fgAll.filter(isUpcoming),fgDone=fgAll.filter(isDone);
+  const fiActive=fiAll.filter(isAct),fiUpcoming=fiAll.filter(isUpcoming),fiDone=fiAll.filter(isDone);
   const totG=fgActive.reduce((s,f)=>s+pn(f.monto),0);
   const totI=fiActive.reduce((s,f)=>s+pn(f.monto),0);
   const bal=totI-totG;
@@ -1358,36 +1363,50 @@ function renderFijos(){
   </div>`;
   h+=`<div id="fijo-i" class="seclbl">Ingresos Fijos</div>`;
   if(!fiAll.length)h+=`<div class="empty">Sin ingresos fijos</div>`;
-  const mkFI=(item,ghost)=>{
+  const mkFI=(item,badge)=>{
     const idx=fiAll.indexOf(item),catColor=getCatColor(item.categoria);
-    return `${ghost?'<div class="fijo-ghost">':''}<div class="card"><div class="irow">
-      <div class="ileft"><div class="iname">${esc(item.concepto)}${ghost?'<span class="bdg-done">Finalizado</span>':""}${item.categoria?`<span class="cat-pill" style="background:${catColor}22;color:${catColor}">${item.categoria}</span>`:""}</div>
+    const wrapClass=badge==="done"?"fijo-ghost":badge==="upcoming"?"fijo-upcoming":"";
+    const badgeHtml=badge==="done"?'<span class="bdg-done">Finalizado</span>':badge==="upcoming"?'<span class="bdg-upcoming">Próximo</span>':"";
+    const amtColor=badge==="done"?"var(--text3)":"var(--green)";
+    return `${wrapClass?`<div class="${wrapClass}">`:''}<div class="card"><div class="irow">
+      <div class="ileft"><div class="iname">${esc(item.concepto)}${badgeHtml}${item.categoria?`<span class="cat-pill" style="background:${catColor}22;color:${catColor}">${item.categoria}</span>`:""}</div>
       <div class="imeta">${item.dueDay?`día ${item.dueDay} · `:""}desde ${item.fi||"siempre"}${item.ff?` hasta ${item.ff}`:""}</div></div>
-      <span class="iamt" style="color:${ghost?"var(--text3)":"var(--green)"}">${fmt(item.monto)}/mes</span>
+      <span class="iamt" style="color:${amtColor}">${fmt(item.monto)}/mes</span>
       <div class="iacts"><button class="abtn" onclick="editFI(${idx})">${ICO.edit}</button><button class="abtn" onclick="delFI(${idx})">${ICO.del}</button></div>
-    </div></div>${ghost?'</div>':""}`;
+    </div></div>${wrapClass?'</div>':""}`;
   };
-  fiActive.forEach(f=>h+=mkFI(f,false));
+  fiActive.forEach(f=>h+=mkFI(f,""));
+  if(fiUpcoming.length){
+    h+=`<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:12px 2px 4px">Próximos</div>`;
+    fiUpcoming.forEach(f=>h+=mkFI(f,"upcoming"));
+  }
   if(fiDone.length){
     h+=`<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:12px 2px 4px">Finalizados</div>`;
-    fiDone.forEach(f=>h+=mkFI(f,true));
+    fiDone.forEach(f=>h+=mkFI(f,"done"));
   }
   h+=`<div class="fijo-sec-div"><div class="fijo-sec-line"></div><span class="fijo-sec-lbl">GASTOS FIJOS</span><div class="fijo-sec-line"></div></div>`;
   h+=`<div id="fijo-g"></div>`;
   if(!fgAll.length)h+=`<div class="empty">Sin gastos fijos</div>`;
-  const mkFG=(item,ghost)=>{
+  const mkFG=(item,badge)=>{
     const idx=fgAll.indexOf(item),catColor=getCatColor(item.categoria);
-    return `${ghost?'<div class="fijo-ghost">':''}<div class="card"><div class="irow">
-      <div class="ileft"><div class="iname">${esc(item.concepto)}${ghost?'<span class="bdg-done">Finalizado</span>':""}${item.categoria?`<span class="cat-pill" style="background:${catColor}22;color:${catColor}">${item.categoria}</span>`:""}</div>
+    const wrapClass=badge==="done"?"fijo-ghost":badge==="upcoming"?"fijo-upcoming":"";
+    const badgeHtml=badge==="done"?'<span class="bdg-done">Finalizado</span>':badge==="upcoming"?'<span class="bdg-upcoming">Próximo</span>':"";
+    const amtColor=badge==="done"?"var(--text3)":"var(--red)";
+    return `${wrapClass?`<div class="${wrapClass}">`:''}<div class="card"><div class="irow">
+      <div class="ileft"><div class="iname">${esc(item.concepto)}${badgeHtml}${item.categoria?`<span class="cat-pill" style="background:${catColor}22;color:${catColor}">${item.categoria}</span>`:""}</div>
       <div class="imeta">${item.cuenta||getDebitAccount()?.name||"Débito"} · ${item.dueDay?`día ${item.dueDay} · `:""}desde ${item.fi||"siempre"}${item.ff?` hasta ${item.ff}`:""}</div></div>
-      <span class="iamt" style="color:${ghost?"var(--text3)":"var(--red)"}">${fmt(item.monto)}/mes</span>
+      <span class="iamt" style="color:${amtColor}">${fmt(item.monto)}/mes</span>
       <div class="iacts"><button class="abtn" onclick="editFG(${idx})">${ICO.edit}</button><button class="abtn" onclick="delFG(${idx})">${ICO.del}</button></div>
-    </div></div>${ghost?'</div>':""}`;
+    </div></div>${wrapClass?'</div>':""}`;
   };
-  fgActive.forEach(f=>h+=mkFG(f,false));
+  fgActive.forEach(f=>h+=mkFG(f,""));
+  if(fgUpcoming.length){
+    h+=`<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:12px 2px 4px">Próximos</div>`;
+    fgUpcoming.forEach(f=>h+=mkFG(f,"upcoming"));
+  }
   if(fgDone.length){
     h+=`<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:12px 2px 4px">Finalizados</div>`;
-    fgDone.forEach(f=>h+=mkFG(f,true));
+    fgDone.forEach(f=>h+=mkFG(f,"done"));
   }
   return h;
 }
@@ -1571,12 +1590,14 @@ function showMSIForm(item){
     </div>
     <div id="mprev" style="text-align:center;padding:10px;border-radius:10px;background:var(--orange-dim);color:var(--cta);font-family:Syne,sans-serif;font-weight:800;font-size:16px;display:${item.total&&item.meses?"block":"none"}">${item.total&&item.meses?fmt(item.total/item.meses)+"/mes":""}</div>
     <label class="lbl">Fecha inicio</label><input type="month" id="mfi" value="${item.fi||""}">
-    <label class="clbl" style="padding:8px 0;margin-top:2px"><input type="checkbox" id="msi-fijo" ${item.asFijo?"checked":""}> <span style="font-size:13px">Agregar mensualidad como gasto fijo</span></label>
+    <label class="clbl" style="padding:8px 0;margin-top:2px"><input type="checkbox" id="msi-fijo" ${item.asFijo?"checked":""} onchange="togMsiFijoFF()"> <span style="font-size:13px">Agregar mensualidad como gasto fijo</span></label>
+    <div id="msi-fijo-ff" style="display:${item.asFijo?"block":"none"}"><label class="lbl">Fecha fin del gasto fijo (opcional)</label><input type="month" id="mfi-ff" value="${item.fijoFf||""}"></div>
     <button class="bp" onclick="saveMSI()">Guardar</button>
     <button class="bg" onclick="closeModal()">Cancelar</button>
   </div>`;
   document.getElementById("overlay").style.display="flex";
 }
+function togMsiFijoFF(){const chk=document.getElementById("msi-fijo"),wrap=document.getElementById("msi-fijo-ff");if(wrap)wrap.style.display=chk?.checked?"block":"none";}
 function prevMSI(){const t=pn(document.getElementById("mt").value.replace(/[^0-9.]/g,'')),m=parseInt(document.getElementById("mm").value)||0,el=document.getElementById("mprev");if(t&&m){el.style.display="block";el.textContent=fmt(t/m)+"/mes";}else el.style.display="none";}
 function saveMSI(){
   var conEl=document.getElementById("mc"),totEl=document.getElementById("mt"),mesEl=document.getElementById("mm"),ok=true;
@@ -1589,9 +1610,10 @@ function saveMSI(){
   const con=conEl.value.trim();
   const asFijo=document.getElementById("msi-fijo")?.checked||false;
   const fi=document.getElementById("mfi").value||"";
+  const fijoFf=document.getElementById("mfi-ff")?.value||"";
   const cta=document.getElementById("mta").value;
   const emoji=document.getElementById("memoji")?.value.trim()||suggestMSIEmoji(con);
-  const item={id:editId!==null?(getG().msi[editId].id||uid()):uid(),concepto:con,emoji,total:pn(rawTot),meses:rawMes,cuenta:cta,fi,asFijo};
+  const item={id:editId!==null?(getG().msi[editId].id||uid()):uid(),concepto:con,emoji,total:pn(rawTot),meses:rawMes,cuenta:cta,fi,asFijo,fijoFf};
   const g=getG();if(editId!==null){item.id=g.msi[editId].id;g.msi[editId]=item;}else g.msi.push(item);
   // Sincronizar gasto fijo vinculado
   const _men=item.total/item.meses;
@@ -1606,14 +1628,14 @@ function saveMSI(){
         const _prev=new Date(new Date().getFullYear(),new Date().getMonth()-1,1);
         const _prevKey=`${_prev.getFullYear()}-${String(_prev.getMonth()+1).padStart(2,"0")}`;
         g.fg[_fijoIdx]={..._ef,ff:_prevKey};
-        g.fg.push({id:uid(),msiId:item.id,concepto:con,monto:_men,cuenta:cta,categoria:"Deuda",dueDay:"",fi:_curKey,ff:""});
+        g.fg.push({id:uid(),msiId:item.id,concepto:con,monto:_men,cuenta:cta,categoria:"Deuda",dueDay:"",fi:_curKey,ff:fijoFf});
       }else{
         // Fijo inicia este mes o en el futuro → editar en su lugar
-        g.fg[_fijoIdx]={..._ef,concepto:con,monto:_men,cuenta:cta};
+        g.fg[_fijoIdx]={..._ef,concepto:con,monto:_men,cuenta:cta,ff:fijoFf};
       }
     }else{
       // Crear fijo nuevo
-      g.fg.push({id:uid(),msiId:item.id,concepto:con,monto:_men,cuenta:cta,categoria:"Deuda",dueDay:"",fi:fi||_curKey,ff:""});
+      g.fg.push({id:uid(),msiId:item.id,concepto:con,monto:_men,cuenta:cta,categoria:"Deuda",dueDay:"",fi:fi||_curKey,ff:fijoFf});
     }
   }else if(_fijoIdx>=0){
     // asFijo desmarcado al editar → cerrar fijo existente en mes anterior
