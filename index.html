@@ -180,6 +180,12 @@ input::placeholder{color:var(--text3);}
 
 /* MSI */
 .msicard{background:var(--surface);border:1px solid var(--border);border-radius:16px;margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow-sm);}
+.msicard-done{opacity:0.72;}
+.msi-done-badge{background:var(--green-dim);color:var(--green-dark);border:1px solid rgba(76,175,80,0.3);font-size:9px;padding:1px 7px;border-radius:8px;font-weight:700;vertical-align:middle;margin-left:5px;}
+[data-theme="dark"] .msi-done-badge{color:var(--green);}
+.msi-archive-toggle{width:100%;background:transparent;border:none;display:flex;align-items:center;justify-content:space-between;padding:10px 2px 6px;cursor:pointer;}
+.msi-archive-lbl{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;}
+.msi-archive-chev{font-size:13px;color:var(--text3);transition:transform .2s;}
 .msih{padding:13px 13px 10px;display:flex;align-items:center;gap:10px;}
 .msiico{width:34px;height:34px;border-radius:9px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
 .msiinfo{flex:1;}
@@ -701,7 +707,8 @@ async function loadUserData(){
     };
 
     await Promise.race([fetchData(), timeout]);
-    // Re-render with fresh data
+    // Auto-close fijos linked to completed MSIs, then re-render
+    autoCloseMSIFijos();
     render();
 
   } catch(e){ 
@@ -1537,15 +1544,16 @@ function suggestMSIEmoji(con){
 function renderMSI(){
   const g=getG(),msi=g.msi||[];
   const now=new Date();
+  const nowKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
   let total=0;
   let h=`<div class="page-hdr"><div class="page-hdr-title">MSI</div><div class="page-hdr-sub">Créditos a meses sin intereses</div></div>`;
   h+=`<button class="fab" onclick="openAddMSI()" style="margin-bottom:12px">${ICO.plus} Agregar MSI</button>`;
   h+=`<div class="seclbl">Créditos MSI</div>`;
   if(!msi.length)h+=`<div class="empty">Sin créditos MSI</div>`;
-  /* emoji map moved to suggestMSIEmoji() */
+  const activeSections=[],archivedSections=[];
   msi.forEach((item,idx)=>{
-    const men=item.total/item.meses;total+=men;
-    const ck=item.fi||`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+    const men=item.total/item.meses;
+    const ck=item.fi||nowKey;
     const sp=ck.split("-");
     const sd=new Date(parseInt(sp[0]),parseInt(sp[1])-1,1);
     const nd=new Date(now.getFullYear(),now.getMonth(),1);
@@ -1553,27 +1561,69 @@ function renderMSI(){
     mp=Math.max(0,Math.min(mp,item.meses));
     const mr=item.meses-mp,montoR=men*mr,pct=(mp/item.meses)*100;
     const ed=new Date(sd);ed.setMonth(ed.getMonth()+item.meses-1);
+    const lastKey=`${ed.getFullYear()}-${String(ed.getMonth()+1).padStart(2,"0")}`;
     const endStr=`${MONTHS[ed.getMonth()]} ${ed.getFullYear()}`;
     const startStr=`${MONTHS[sd.getMonth()]} ${sd.getFullYear()}`;
     const ico=item.emoji||(suggestMSIEmoji(item.concepto)||"💳");
-    h+=`<div class="msicard">
+    const isCompleted=mp>=item.meses;
+    const isArchived=isCompleted&&nowKey>lastKey;
+    if(!isCompleted)total+=men;
+    const progBar=isCompleted
+      ?`<div class="progwrap"><div class="progfill" style="width:100%;background:linear-gradient(90deg,var(--green),var(--green-dark))"></div></div>`
+      :`<div class="progwrap"><div class="progfill" style="width:${pct}%"></div></div>`;
+    const footRow=isCompleted
+      ?`<div class="msift"><div class="msist">Pagados <span>${mp}/${item.meses} · ${fmt(mp*men)}</span></div><div class="msist" style="color:var(--green);font-weight:700">🎉 ¡Liquidado!</div><div class="msist">Total <span>${fmt(item.total)}</span></div></div>`
+      :`<div class="msift"><div class="msist">Pagados <span>${mp}/${item.meses} · ${fmt(mp*men)}</span></div><div class="msist">Restante <span style="color:var(--cta)">${fmt(montoR)}</span></div><div class="msist">Total <span>${fmt(item.total)}</span></div></div>`;
+    const card=`<div class="msicard${isCompleted?" msicard-done":""}">
       <div class="msih"><div class="msiico">${ico}</div>
-        <div class="msiinfo"><div class="msiname">${esc(item.concepto)}</div><div class="msidet">${item.cuenta||"—"} · ${item.meses} meses · Inicio ${startStr} · Fin ${endStr}</div></div>
+        <div class="msiinfo"><div class="msiname">${esc(item.concepto)}${isCompleted?'<span class="msi-done-badge">✓ Completado</span>':""}</div><div class="msidet">${item.cuenta||"—"} · ${item.meses} meses · ${startStr} → ${endStr}</div></div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-          <span class="msimon">${fmt(men)}/mes</span>
+          <span class="msimon" style="${isCompleted?"color:var(--text3);text-decoration:line-through":""}">${fmt(men)}/mes</span>
           <div style="display:flex;gap:2px"><button class="abtn" onclick="editMSI(${idx})">${ICO.edit}</button><button class="abtn" onclick="delMSI(${idx})">${ICO.del}</button></div>
         </div>
       </div>
-      <div class="progwrap"><div class="progfill" style="width:${pct}%"></div></div>
-      <div class="msift">
-        <div class="msist">Pagados <span>${mp}/${item.meses} · ${fmt(mp*men)}</span></div>
-        <div class="msist">Restante <span style="color:var(--cta)">${fmt(montoR)}</span></div>
-        <div class="msist">Total <span>${fmt(item.total)}</span></div>
-      </div>
+      ${progBar}${footRow}
     </div>`;
+    if(isArchived)archivedSections.push(card);else activeSections.push(card);
   });
-  if(msi.length)h+=`<div class="totrow"><span class="totlbl">Cargo mensual total</span><span class="totval" style="color:var(--cta)">${fmt(total)}/mes</span></div>`;
+  activeSections.forEach(c=>h+=c);
+  if(activeSections.length&&total>0)h+=`<div class="totrow"><span class="totlbl">Cargo mensual total</span><span class="totval" style="color:var(--cta)">${fmt(total)}/mes</span></div>`;
+  if(archivedSections.length){
+    h+=`<button class="msi-archive-toggle" onclick="togMsiArchive()">
+      <span class="msi-archive-lbl">Completados (${archivedSections.length})</span>
+      <span class="msi-archive-chev" id="msi-arch-chev">▾</span>
+    </button>
+    <div id="msi-archive" style="display:none">${archivedSections.join("")}</div>`;
+  }
   return h;
+}
+function togMsiArchive(){
+  const el=document.getElementById("msi-archive"),ch=document.getElementById("msi-arch-chev");
+  if(!el)return;
+  const open=el.style.display!=="none";
+  el.style.display=open?"none":"block";
+  if(ch){ch.textContent=open?"▾":"▴";ch.style.transform=open?"":"rotate(180deg)";}
+}
+function autoCloseMSIFijos(){
+  const g=getG();
+  const now=new Date();
+  const nowKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+  let changed=false;
+  (g.msi||[]).forEach(item=>{
+    if(!item.fi||!item.meses||!item.asFijo)return;
+    const sp=item.fi.split("-");
+    const sd=new Date(parseInt(sp[0]),parseInt(sp[1])-1,1);
+    const ed=new Date(sd);ed.setMonth(ed.getMonth()+item.meses-1);
+    const lastKey=`${ed.getFullYear()}-${String(ed.getMonth()+1).padStart(2,"0")}`;
+    if(nowKey>lastKey){
+      const fi=(g.fg||[]).findIndex(f=>f.msiId===item.id);
+      if(fi>=0&&(!g.fg[fi].ff||g.fg[fi].ff>lastKey)){
+        g.fg[fi]={...g.fg[fi],ff:lastKey};
+        changed=true;
+      }
+    }
+  });
+  if(changed)setG(g);
 }
 function openAddMSI(){editId=null;const firstCredit=getCreditAccounts()[0];showMSIForm({concepto:"",total:"",meses:"",cuenta:firstCredit?firstCredit.name:"",fi:""});}
 function editMSI(idx){editId=idx;showMSIForm({...getG().msi[idx]});}
